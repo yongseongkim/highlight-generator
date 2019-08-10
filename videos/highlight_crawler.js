@@ -38,16 +38,18 @@ function videoURLs() {
                 var team = getTeam(teamNames, title)
                 var game = /Game ([0-9])/.exec(title)
                 var week = /W([0-9]*)D[0-9]*/.exec(title)
-                var gameType = null
-                if (title.includes("Finals")) {
+                if (week != null && week.length > 1)  {
+                    week = week[1]
+                } else if (title.includes("Finals")) {
                     week = "finals"
                 } else if (title.includes("Playoffs")) {
                     week = "playoffs"
                 }
-                if (game == null || game.length < 2 || week == null || week.length < 2) {
+                if (game == null || game.length < 2 || week == null) {
                     continue
                 }
-                var matchName = "lcksummersplit_" + team[0] + "_" + team[1] + "_week_" + week[1] + "_game_" + game[1]
+                var matchName = "lckspringsplit_" + team[0] + "_" + team[1] + "_week_" + week + "_game_" + game[1]
+                // var matchName = "lcksummersplit_" + team[0] + "_" + team[1] + "_week_" + week + "_game_" + game[1]
                 for (atag of element.getElementsByTagName("a")) {
                     if (atag.id == "wc-endpoint") {
                         url = atag.href
