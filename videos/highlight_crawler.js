@@ -1,67 +1,63 @@
-// [LCK youtube page](https://www.youtube.com/channel/UCw1DsweY9b2AKGjV4kGJP1A/videos)에서 하이라이트를 크롤링
+// [Onivia League of Legends Highlights (LCS, LCK, LPL, LMS)](https://www.youtube.com/channel/UCPhab209KEicqPJFAk9IZEA)
+// 2019 lck spring highlights https://www.youtube.com/watch?v=AQcz1wk9Kd0&list=PLx1tUfSuJjy3Xf_F-xRbO8zRSww7pmM0Z
+// 2019 lck summer highlights https://www.youtube.com/watch?v=1xcWcjQ5EhQ&list=PLx1tUfSuJjy0ZiFSheym97uktIsFUFr2b
+
 var teamNames = {
-	'샌드박스': 'sb',
 	'SB': 'sb',
 	'KT': 'kt',
-	'아프리카': 'af',
 	'AF': 'af',
-	'그리핀': 'grf',
 	'GRF': 'grf',
-	'담원': 'dwg',
 	'DWG': 'dwg',
-	'한화생명': 'hle',
 	'HLE': 'hle',
 	'SKT': 'skt',
-	'젠지': 'gen',
 	'GEN': 'gen',
-	'킹존': 'kz',
 	'KZ': 'kz',
-	'진에어': 'jag',
 	'JAG': 'jag'
 }
 var videos = {}
-var items = $('#items')
 
-function scrollToBottom() {
-    window.scrollTo(0, items.scrollHeight);
-}
-
-function findTeam(teamNames, title) {
-    var matched = title.match(/[가-힣a-zA-Z]* vs [가-힣a-zA-Z]*/g);
-    if (matched) {
-        for (let word of matched) {
-            var vs = word.split('vs');
-            var t1 = teamNames[vs[0].replace(/\s/g, '')];
-            var t2 = teamNames[vs[1].replace(/\s/g, '')];
-            if (t1 && t2) {
-                return [t1, t2]
-            }
-        }
+function getTeam(teamNames, title) {
+    var regexResults = /([a-zA-Z]*) vs ([a-zA-Z]*)/.exec(title)
+    try {
+        var team1 = teamNames[regexResults[1]]
+        var team2 = teamNames[regexResults[2]]
+        return [team1, team2]
+    } catch (e) {
+        return null
     }
-    return null
 }
 
 function videoURLs() {
     var nov = {}    // 매치를 구분하기 위해 number of video 를 저장한다.
-    var grids = items.getElementsByTagName('ytd-grid-video-renderer');
+    var items = document.getElementsByTagName('ytd-playlist-panel-video-renderer')
     var urls = {};
-    for (let item of grids) {
-        url = item.getElementsByTagName('a')[0].href;
-        title = item.getElementsByTagName('a')[1].title;
-        title = title.replace(/\.\.\./g, '');
-        var dateRegexResult = /[0-9]*\.[0-9]*\.[0-9]*/.exec(title);
-        var team = findTeam(teamNames, title);
-        if (!dateRegexResult || !team || team.length < 2 || title.includes('인터뷰')) {
-            continue;
+    for(element of items) {
+        for (span of element.getElementsByTagName("span")) {
+            if (span.id == "video-title") {
+                var title = span.title
+                var team = getTeam(teamNames, title)
+                var game = /Game ([0-9])/.exec(title)
+                var week = /W([0-9]*)D[0-9]*/.exec(title)
+                var gameType = null
+                if (title.includes("Finals")) {
+                    week = "finals"
+                } else if (title.includes("Playoffs")) {
+                    week = "playoffs"
+                }
+                if (game == null || game.length < 2 || week == null || week.length < 2) {
+                    continue
+                }
+                var matchName = "lcksummersplit_" + team[0] + "_" + team[1] + "_week_" + week[1] + "_game_" + game[1]
+                for (atag of element.getElementsByTagName("a")) {
+                    if (atag.id == "wc-endpoint") {
+                        url = atag.href
+                        break
+                    }
+                }
+                urls[matchName] = url;
+                break
+            }
         }
-        var date = dateRegexResult[0].replace(/\./g, '');
-        var matchName = date + '_' + team[0] + team[1];
-        if (!nov[matchName]) {
-            nov[matchName] = 0;
-        }
-        nov[matchName] = nov[matchName] + 1;
-        matchName = matchName + '_' + nov[matchName];
-        urls[matchName] = url;
     }
     return urls;
 }
@@ -76,9 +72,4 @@ function downloadObjectAsJson(exportObj, exportName){
     downloadAnchorNode.remove();
 }
 
-scrollToBottom();
-// https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
-new ResizeObserver(function () {
-    videos = videoURLs();
-    scrollToBottom();
-    }).observe(items)
+videos = videoURLs()
