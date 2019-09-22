@@ -65,6 +65,8 @@ function videoURLs() {
     // ex) KT vs DWG - Week 10 Game 2 | LCK Spring Split | kt Rolster vs. DAMWON Gaming (2019)
     // ex) KZ vs. SKT - Week 6 Game 2 | LCK Spring Split | KING-ZONE DragonX vs. SK telecom T1 (2019)
     // ex) SB vs AF  - Week 6 Game 1 | LCK Spring Split | SANDBOX Gaming vs. Afreeca Freecs (2019)
+    // ex) SB vs SKT | Playoffs Round 1 Game 1 | LCK Summer Split | SANDBOX Gaming vs. SK Telecom T1 (2019)
+    // ex) SKT vs AF - Playoffs Wildcard Game 3 | LCK Summer Split | SK Telecom T1 vs. Afreeca Freecs (2019)
     for (let item of grids) {
         url = item.getElementsByTagName('a')[0].href;
         title = item.getElementsByTagName('a')[1].title;
