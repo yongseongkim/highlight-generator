@@ -1,6 +1,7 @@
 #
 # 게임 영상에서 게임 진행 시간 추출하기
 #
+from pytube import YouTube
 import cv2
 import os
 import numpy as np
@@ -15,11 +16,10 @@ from PIL import Image
 class Higlight:
     def __init__(self, name):
         self._name = name
-        # 롤 최장 경기 기록은 94분 40초
-        self._duration = 95 * 60
+        self._duration = 100 * 60
         self._times = [0 for x in range(self._duration)]
-        # 같은 구간으로 판단하는 단위, 5초 이내는 같은 구간으로 처리한다.
-        self._threshold = 5
+        self._fill_window = 10
+        self._remove_gap = 3
 
     def add_time(self, ff, fb, bf, bb):
         if not ff or not fb or not bf or not bb:
@@ -33,7 +33,39 @@ class Higlight:
             return
         self._times[seconds] += 1
 
+    def fill_if_has_adjacent(self):
+        for idx in range(self._duration - self._fill_window):
+            lidx = -1
+            ridx = -1
+            for w in range(self._fill_window):
+                if self._times[idx + w] == 1:
+                    lidx = idx + w
+                if self._times[idx + self._fill_window - w] == 1:
+                    ridx = idx + self._fill_window - w
+            if lidx != -1 and ridx != -1:
+                for w in range(lidx, ridx, 1):
+                    self._times[w] = 1
+
+    def remove_if_not_has_adjacent(self):
+        for idx in range(self._duration):
+            if self._times[idx] != 1:
+                continue
+            has_adjacent = False
+            for i in range(self._remove_gap):
+                if idx + i < self._duration and self._times[idx + i] == 1:
+                    has_adjacent = True
+            for i in range(self._remove_gap):
+                if idx - i >= 0 and self._times[idx - i] == 1:
+                    has_adjacent = True
+            if not has_adjacent:
+                self._times[idx] = 0
+
     def to_dict(self):
+        print(self._times)
+        self.remove_if_not_has_adjacent()
+        self.fill_if_has_adjacent()
+        print(self._times)
+
         highlight_scenes = []
         sect_st = -1
         for idx in range(self._duration):
@@ -64,7 +96,7 @@ def preprocess(img):
     return img
 
 
-def extract_time(src_path, interval_millis=1000, start_millis=None, end_millis=None):
+def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margin_millis=None):
     if not os.path.exists(src_path) or not os.path.isfile(src_path):
         print('there is no source.')
         raise ValueError
@@ -76,17 +108,19 @@ def extract_time(src_path, interval_millis=1000, start_millis=None, end_millis=N
     fheight = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = video.get(cv2.CAP_PROP_FPS)
     num_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
-    duration = int(num_frames / fps)
-    print('###### %d x %d, fps: %f, the number of frames: %d, duration: %d seconds' % (fwidth, fheight, fps, num_frames, duration))
+    duration = int(num_frames / fps) * 1000
+    print('###### %d x %d, fps: %f, the number of frames: %d, duration: %d seconds' % (
+        fwidth, fheight, fps, num_frames, duration))
 
     cur_frame = 0
-    video.set(cv2.CAP_PROP_POS_MSEC, start_millis)
+    video.set(cv2.CAP_PROP_POS_MSEC, st_margin_miilis)
     hl = Higlight(name=filename)
     while(True):
         if interval_millis is not None:
-            start_time = (start_millis or 0) + (cur_frame * interval_millis)
+            start_time = (st_margin_miilis or 0) + \
+                (cur_frame * interval_millis)
             video.set(cv2.CAP_PROP_POS_MSEC, start_time)
-            if start_time > (end_millis or ((num_frames / fps) * 1000)):
+            if start_time > ((duration - et_margin_millis) or ((num_frames / fps) * 1000)):
                 break
             if cur_frame > num_frames / ((fps * interval_millis) / 1000):
                 break
@@ -95,46 +129,46 @@ def extract_time(src_path, interval_millis=1000, start_millis=None, end_millis=N
         ret, frame = video.read()
         if ret:
             frame = preprocess(frame)
-            cwidth, cheight = 11, 18
+            cwidth, cheight = 10, 18
 
             # front (78, 942, 20, 24) / back (78, 968, 20, 23)
-            img_dir = '/Users/yongseongkim/Documents/workspace.nosync/highlight-generator/highlight_frames/'
-            cx, cy = 945, 79
+            # img_dir = '/Users/yongseongkim/Documents/workspace.nosync/highlight-generator/highlight_frames/'
+            cx, cy = 944, 78
             ff_img = frame[cy: cy + cheight, cx: cx + cwidth]
-            cv2.imwrite(os.path.join(img_dir, 'ff_frame_' + str(cur_frame) + '.jpg'), ff_img)
+            # cv2.imwrite(os.path.join(img_dir, 'ff_frame_' + str(cur_frame) + '.jpg'), ff_img)
             ff_text = pytesseract.image_to_string(
                 Image.fromarray(ff_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
-            cx, cy = 954, 79
+            cx, cy = 953, 78
             fb_img = frame[cy: cy + cheight, cx: cx + cwidth]
-            cv2.imwrite(os.path.join(img_dir, 'fb_frame_' + str(cur_frame) + '.jpg'), fb_img)
+            # cv2.imwrite(os.path.join(img_dir, 'fb_frame_' + str(cur_frame) + '.jpg'), fb_img)
             fb_text = pytesseract.image_to_string(
                 Image.fromarray(fb_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
 
-            cx, cy = 968, 79
+            cx, cy = 967, 78
             bf_img = frame[cy: cy + cheight, cx: cx + cwidth]
-            cv2.imwrite(os.path.join(img_dir, 'bf_frame_' + str(cur_frame) + '.jpg'), bf_img)
+            # cv2.imwrite(os.path.join(img_dir, 'bf_frame_' + str(cur_frame) + '.jpg'), bf_img)
             bf_text = pytesseract.image_to_string(
                 Image.fromarray(bf_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
-            cx, cy = 977, 79
+            cx, cy = 976, 78
             bb_img = frame[cy: cy + cheight, cx: cx + cwidth]
-            cv2.imwrite(os.path.join(img_dir, 'bb_frame_' + str(cur_frame) + '.jpg'), bb_img)
+            # cv2.imwrite(os.path.join(img_dir, 'bb_frame_' + str(cur_frame) + '.jpg'), bb_img)
             bb_text = pytesseract.image_to_string(
                 Image.fromarray(bb_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
-            
-            print('current frame: %d, front text : %s, %s, back text: %s, %s' % (cur_frame, ff_text, fb_text, bf_text, bb_text))
+            print('current frame: %d, front text : %s, %s, back text: %s, %s' %
+                  (cur_frame, ff_text, fb_text, bf_text, bb_text))
             try:
                 hl.add_time(ff_text, fb_text, bf_text, bb_text)
             except Exception as e:
                 print('Error happend from %s, the order of frame is %d, interval millis is %d, start millis is %d, end millis is %d\n'
-                      % (src_path, cur_frame, interval_millis, start_millis, end_millis), e)
+                      % (src_path, cur_frame, interval_millis, st_margin_miilis, duration - et_margin_millis), e)
         else:
             break
         cur_frame += 1
@@ -146,7 +180,19 @@ def extract_time(src_path, interval_millis=1000, start_millis=None, end_millis=N
     print('###### complete extracting time from %s' % src_path)
 
 
-extract_time(src_path='/Users/yongseongkim/Downloads/highlight.webm',
-             interval_millis=None,
-             start_millis=25000,
-             end_millis=100000)
+video_dir = './raw_files/'
+with open('./highlight.json') as data:
+    videos = json.load(data)
+    for key in videos:
+        filepath = os.path.join(video_dir, key + '.webm')
+        if os.path.exists(filepath):
+            continue
+        print('##### download file: %s, %s' % (key, videos[key]))
+        try:
+            YouTube(videos[key]).streams.filter(adaptive=True, only_video=True).order_by(
+                'resolution').desc().first().download(output_path=video_dir, filename=key)
+            if os.path.exists(filepath):
+                extract_time(src_path=filepath, interval_millis=1000,
+                             st_margin_miilis=15000, et_margin_millis=15000)
+        except Exception as e:
+            print(e)

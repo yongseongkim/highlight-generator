@@ -5,9 +5,11 @@
 var teamNames = {
 	'SB': 'sb',
 	'KT': 'kt',
-	'AF': 'af',
+    'AF': 'af',
+    'AFS': 'af',
 	'GRF': 'grf',
-	'DWG': 'dwg',
+    'DWG': 'dwg',
+    'DMW': 'dwg',
 	'HLE': 'hle',
 	'SKT': 'skt',
 	'GEN': 'gen',
