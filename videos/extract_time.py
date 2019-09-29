@@ -51,12 +51,13 @@ class Higlight:
             if self._times[idx] != 1:
                 continue
             has_adjacent = False
-            for i in range(self._remove_gap):
+            for i in range(1, self._remove_gap, 1):
                 if idx + i < self._duration and self._times[idx + i] == 1:
                     has_adjacent = True
-            for i in range(self._remove_gap):
+                    break
                 if idx - i >= 0 and self._times[idx - i] == 1:
                     has_adjacent = True
+                    break
             if not has_adjacent:
                 self._times[idx] = 0
 
@@ -192,7 +193,7 @@ with open('./highlight.json') as data:
             YouTube(videos[key]).streams.filter(adaptive=True, only_video=True).order_by(
                 'resolution').desc().first().download(output_path=video_dir, filename=key)
             if os.path.exists(filepath):
-                extract_time(src_path=filepath, interval_millis=1000,
+                extract_time(src_path=filepath, interval_millis=10000,
                              st_margin_miilis=15000, et_margin_millis=15000)
         except Exception as e:
             print(e)
