@@ -19,7 +19,7 @@ class Higlight:
         self._duration = 100 * 60
         self._times = [0 for x in range(self._duration)]
         self._fill_window = 10
-        self._remove_gap = 3
+        self._remove_threshold = 5
 
     def add_time(self, ff, fb, bf, bb):
         if not ff or not fb or not bf or not bb:
@@ -38,28 +38,37 @@ class Higlight:
             lidx = -1
             ridx = -1
             for w in range(self._fill_window):
-                if self._times[idx + w] == 1:
+                if self._times[idx + w] >= 1:
                     lidx = idx + w
-                if self._times[idx + self._fill_window - w] == 1:
+                    break
+            for w in range(self._fill_window):
+                if self._times[idx + self._fill_window - w] >= 1:
                     ridx = idx + self._fill_window - w
+                    break
             if lidx != -1 and ridx != -1:
                 for w in range(lidx, ridx, 1):
                     self._times[w] = 1
 
     def remove_if_not_has_adjacent(self):
+        idx = 0
+        s0 = []
+        s1 = []
         for idx in range(self._duration):
-            if self._times[idx] != 1:
-                continue
-            has_adjacent = False
-            for i in range(1, self._remove_gap, 1):
-                if idx + i < self._duration and self._times[idx + i] == 1:
-                    has_adjacent = True
-                    break
-                if idx - i >= 0 and self._times[idx - i] == 1:
-                    has_adjacent = True
-                    break
-            if not has_adjacent:
-                self._times[idx] = 0
+            if self._times[idx] == 0:
+                if len(s1) >= self._remove_threshold:
+                    s1 = []
+                s0.append(idx)
+            else:
+                if len(s0) > self._remove_threshold and 0 < len(s1) < self._remove_threshold:
+                    print('init')
+                    for i in s1:
+                        self._times[i] = 0
+                    s1 = []
+                s0 = []
+                s1.append(idx)
+        if 0 < len(s1) < self._remove_threshold:
+            for i in s1:
+                self._times[i] = 0
 
     def to_dict(self):
         print(self._times)
@@ -70,7 +79,7 @@ class Higlight:
         highlight_scenes = []
         sect_st = -1
         for idx in range(self._duration):
-            if sect_st == -1 and self._times[idx] == 1:
+            if sect_st == -1 and self._times[idx] >= 1:
                 sect_st = idx
             elif sect_st >= 0 and self._times[idx] == 0:
                 highlight_scenes.append({
@@ -193,7 +202,7 @@ with open('./highlight.json') as data:
             YouTube(videos[key]).streams.filter(adaptive=True, only_video=True).order_by(
                 'resolution').desc().first().download(output_path=video_dir, filename=key)
             if os.path.exists(filepath):
-                extract_time(src_path=filepath, interval_millis=10000,
+                extract_time(src_path=filepath, interval_millis=None,
                              st_margin_miilis=15000, et_margin_millis=15000)
         except Exception as e:
             print(e)
