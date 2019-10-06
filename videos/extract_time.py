@@ -60,7 +60,6 @@ class Higlight:
                 s0.append(idx)
             else:
                 if len(s0) > self._remove_threshold and 0 < len(s1) < self._remove_threshold:
-                    print('init')
                     for i in s1:
                         self._times[i] = 0
                     s1 = []
@@ -71,10 +70,8 @@ class Higlight:
                 self._times[i] = 0
 
     def to_dict(self):
-        print(self._times)
         self.remove_if_not_has_adjacent()
         self.fill_if_has_adjacent()
-        print(self._times)
 
         highlight_scenes = []
         sect_st = -1
@@ -141,16 +138,19 @@ def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margi
             frame = preprocess(frame)
             cwidth, cheight = 10, 18
 
-            # front (78, 942, 20, 24) / back (78, 968, 20, 23)
-            # img_dir = '/Users/yongseongkim/Documents/workspace.nosync/highlight-generator/highlight_frames/'
-            cx, cy = 944, 78
+            # spring: (944, 78) (953, 78) (967, 78) (976, 78)
+            # summer: (945, 78) (954, 78) (968, 78) (977, 89)
+            # img_dir = './highlight_frames/'
+            # if not os.path.exists(img_dir):
+            #     os.makedirs(img_dir)
+            cx, cy = 945, 78
             ff_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'ff_frame_' + str(cur_frame) + '.jpg'), ff_img)
             ff_text = pytesseract.image_to_string(
                 Image.fromarray(ff_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
-            cx, cy = 953, 78
+            cx, cy = 954, 78
             fb_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'fb_frame_' + str(cur_frame) + '.jpg'), fb_img)
             fb_text = pytesseract.image_to_string(
@@ -158,14 +158,14 @@ def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margi
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
 
-            cx, cy = 967, 78
+            cx, cy = 968, 78
             bf_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'bf_frame_' + str(cur_frame) + '.jpg'), bf_img)
             bf_text = pytesseract.image_to_string(
                 Image.fromarray(bf_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
-            cx, cy = 976, 78
+            cx, cy = 977, 78
             bb_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'bb_frame_' + str(cur_frame) + '.jpg'), bb_img)
             bb_text = pytesseract.image_to_string(
@@ -191,7 +191,7 @@ def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margi
 
 
 video_dir = './raw_files/'
-with open('./highlight.json') as data:
+with open('./highlight-summer.json') as data:
     videos = json.load(data)
     for key in videos:
         filepath = os.path.join(video_dir, key + '.webm')
