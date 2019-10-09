@@ -1,116 +1,93 @@
 // [Lol Esports VOD youtube page](https://www.youtube.com/channel/UCzAypSoOFKCZUts3ULtVT_g/videos)에서 풀영상을 크롤링
+// 2019 lck spring full https://www.youtube.com/watch?v=t9xmUeh_l-c&list=PLcvpEVobSi9doLKwB08V8o9l80clUgFVP
+// 2019 lck summer full https://www.youtube.com/watch?v=Mh2y8MMYEms&list=PLcvpEVobSi9d3UzPrI1N-3rTI4pn11r5L
+
 var teamNames = {
-    'SB': 'sb',
     'sb': 'sb',
-    'SBG': 'sb',
     'sbg': 'sb',
-    'KT': 'kt',
     'kt': 'kt',
-    'AF': 'af',
     'af': 'af',
-    'GRF': 'grf',
+    'afs': 'af',
     'grf': 'grf',
-    'DWG': 'dwg',
     'dwg': 'dwg',
-    'HLE': 'hle',
+    'dmw': 'dwg',
     'hle': 'hle',
-    'SKT': 'skt',
-    'skt': 'skt',
-    'SK': 'skt',
     'sk': 'skt',
-    'GEN': 'gen',
+    'skt': 'skt',
     'gen': 'gen',
-    'KZ': 'kz',
     'kz': 'kz',
-    'JAG': 'jag',
     'jag': 'jag'
 }
 var videos = {}
-var items = $('#contents')
-
-function scrollToBottom() {
-    window.scrollTo(0, items.scrollHeight);
-}
 
 function getTeam(teamNames, title) {
-    var matched = title.toLowerCase().replace(/\./g, '').match(/[a-zA-Z]* vs [a-zA-Z]*/g);
-    if (matched) {
-        for (let word of matched) {
-            var vs = word.split('vs');
-            var t1 = teamNames[vs[0].replace(/\s/g, '')];
-            var t2 = teamNames[vs[1].replace(/\s/g, '')];
-            if (t1 && t2) {
-                return [t1, t2]
-            }
+    var regexResults = /([a-zA-Z]*) vs ([a-zA-Z]*)/.exec(title)
+    try {
+        var team1 = teamNames[regexResults[1]]
+        var team2 = teamNames[regexResults[2]]
+        if (team1 != null && team2 != null) {
+            return [team1, team2]
         }
+    } catch (e) {
     }
     return null
 }
 
-function getLeagueName(title) {
-    try {
-        return /\|(.*)\|/.exec(title)[1].replace(/\s/g, '').toLowerCase()
-    } catch (e) {
-        return null
-    }
-}
-
 function videoURLs() {
     var nov = {}    // 매치를 구분하기 위해 number of video 를 저장한다.
-    var grids = items.getElementsByTagName('ytd-grid-video-renderer');
+    var items = document.getElementsByTagName('ytd-playlist-panel-video-renderer')
     var urls = {};
-    // ex) GEN vs KT - Week 7 Game 1 | LCK Summer Split | GenG vs. KT Rolster (2019)
-    // ex) HLE vs JAG - Week 3 Game 1 | LCK Summer Split | Hanwha Life Esports vs. Jin Air Greenwings (2019)
-    // ex) HLE vs KT - Week 1 Game 2 | LCK Summer Split | Hanwha Life Esports vs. kt Rolster (2019)
-    // ex) KT vs DWG - Week 10 Game 2 | LCK Spring Split | kt Rolster vs. DAMWON Gaming (2019)
-    // ex) KZ vs. SKT - Week 6 Game 2 | LCK Spring Split | KING-ZONE DragonX vs. SK telecom T1 (2019)
-    // ex) SB vs AF  - Week 6 Game 1 | LCK Spring Split | SANDBOX Gaming vs. Afreeca Freecs (2019)
-    // ex) SB vs SKT | Playoffs Round 1 Game 1 | LCK Summer Split | SANDBOX Gaming vs. SK Telecom T1 (2019)
-    // ex) SKT vs AF - Playoffs Wildcard Game 3 | LCK Summer Split | SK Telecom T1 vs. Afreeca Freecs (2019)
-    for (let item of grids) {
-        url = item.getElementsByTagName('a')[0].href;
-        title = item.getElementsByTagName('a')[1].title;
+    for (element of items) {
+        for (span of element.getElementsByTagName("span")) {
+            if (span.id == "video-title") {
+                var title = span.title.replace(/\./gi,"").toLowerCase()
+                var team = getTeam(teamNames, title)
+                if (team == null) {
+                    continue
+                }
+                var game = /game ([0-9])/.exec(title)
+                if (game == null || game.length < 2) {
+                    continue
+                }
 
-        var team = getTeam(teamNames, title);
-        var matchRegex = /Week [0-9]* Game [0-9]*/.exec(title);
-        if (!matchRegex) {
-            matchRegex = /WILDCARD Game [0-9]*/.exec(title);
+                var week = /week ([0-9]*)/.exec(title)
+                var matchName = "lckspringsplit_" + team[0] + "_" + team[1]
+                // var matchName = "lcksummersplit_" + team[0] + "_" + team[1]
+                if (week != null && week.length > 1) {
+                    matchName += "_week_" + week[1] + "_game_" + game[1]
+                } else if (title.includes("finals")) {
+                    matchName += "_finals_game_" + game[1]
+                } else if (title.includes("playoffs") || title.includes("playoff")) {
+                    matchName += "_playoffs_game_" + game[1]
+                } else if (title.includes("wildcard") || title.includes("wildcards")) {
+                    matchName += "_wildcards_game_" + game[1]
+                } else if (title.includes("regional qualifier")) {
+                    matchName = "regional_qualifier_" + team[0] + "_" + team[1] + "_game_" + game[1]
+                } else {
+                    continue
+                }
+                for (atag of element.getElementsByTagName("a")) {
+                    if (atag.id == "wc-endpoint") {
+                        url = atag.href
+                        break
+                    }
+                }
+                urls[matchName] = url;
+                break
+            }
         }
-        if (!matchRegex) {
-            matchRegex = /PLAYOFF [a-zA-Z0-9\s]* Game [0-9]*/.exec(title);
-        }
-        if (!matchRegex) {
-            matchRegex = /FINALS Game [0-9]*/.exec(title);
-        }
-        if (!matchRegex) {
-            matchRegex = / Game [0-9]*/.exec(title);
-        }
-
-        if (!team || team.length < 2 || !matchRegex || !title.includes('LCK')) {
-            continue;
-        }
-        var leagueName = getLeagueName(title)
-        console.log(title, leagueName)
-        var matchName = leagueName + '_' + team[0] + '_' + team[1] + '_' + matchRegex[0].toLowerCase().replace(/\s/g, "_")
-        matchName = matchName.replace(/(\_)\1/g, "_")
-        urls[matchName] = url;
     }
     return urls;
 }
 
-function downloadObjectAsJson(exportObj, exportName){
+function downloadObjectAsJson(exportObj, exportName) {
     var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
     var downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href",     dataStr);
+    downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", exportName + ".json");
     document.body.appendChild(downloadAnchorNode); // required for firefox
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
 }
 
-scrollToBottom();
-// https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
-new ResizeObserver(function () {
-    videos = videoURLs();
-    scrollToBottom();
-    }).observe(items)
+videos = videoURLs()

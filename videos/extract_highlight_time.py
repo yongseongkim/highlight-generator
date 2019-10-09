@@ -190,19 +190,20 @@ def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margi
     print('###### complete extracting time from %s' % src_path)
 
 
-video_dir = './raw_files/'
-with open('./highlight-summer.json') as data:
-    videos = json.load(data)
-    for key in videos:
-        filepath = os.path.join(video_dir, key + '.webm')
-        if os.path.exists(filepath):
-            continue
-        print('##### download file: %s, %s' % (key, videos[key]))
-        try:
-            YouTube(videos[key]).streams.filter(adaptive=True, only_video=True).order_by(
-                'resolution').desc().first().download(output_path=video_dir, filename=key)
+if __name__ == "__main__":    
+    video_dir = './raw_files/'
+    with open('./highlight-summer.json') as data:
+        videos = json.load(data)
+        for key in videos:
+            filepath = os.path.join(video_dir, key + '.webm')
             if os.path.exists(filepath):
-                extract_time(src_path=filepath, interval_millis=None,
-                             st_margin_miilis=15000, et_margin_millis=15000)
-        except Exception as e:
-            print(e)
+                continue
+            print('##### download file: %s, %s' % (key, videos[key]))
+            try:
+                YouTube(videos[key]).streams.filter(adaptive=True, only_video=True).order_by(
+                    'resolution').desc().first().download(output_path=video_dir, filename=key)
+                if os.path.exists(filepath):
+                    extract_time(src_path=filepath, interval_millis=None,
+                                st_margin_miilis=15000, et_margin_millis=15000)
+            except Exception as e:
+                print(e)
