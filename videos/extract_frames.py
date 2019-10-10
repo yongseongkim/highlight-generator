@@ -73,4 +73,4 @@ if __name__ == "__main__":
         exit()
     src_path = sys.argv[1]
     dest_dir = sys.argv[2]
-    extract_frames(src_path=src_path, dest_dir=dest_dir, size=(160, 90), interval_millis=1000)
+    extract_frames(src_path=src_path, dest_dir=dest_dir, size=(16 * 16, 9 * 16), interval_millis=1000)
