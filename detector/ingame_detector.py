@@ -19,8 +19,9 @@ class IngameDetector:
 
     def __init__(self, model_path=None):
         # load model
+        device = torch.device('cpu')
         if model_path:
-            self.model.load_state_dict(torch.load(model_path))
+            self.model.load_state_dict(torch.load(model_path, map_location=device))
 
     def detect(self, video_path, interval_millis=1000):
         dtransforms = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
