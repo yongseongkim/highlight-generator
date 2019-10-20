@@ -100,7 +100,9 @@ def frame_order(str):
 def preprocess(img):
     # grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # return grayscale
-    return img
+    denoised = cv2.fastNlMeansDenoisingColored(img, None, 10,10,7,21)
+    return denoised
+    # return img
 
 
 def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margin_millis=None):

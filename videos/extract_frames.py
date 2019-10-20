@@ -19,7 +19,7 @@ def preprocess(img):
     return img
 
 
-def extract_frames(src_path, dest_dir, size, interval_millis=1000, st_margin_miilis=0, et_margin_millis=0):
+def extract_frames(src_path, dest_dir, size=None, interval_millis=1000, st_margin_miilis=0, et_margin_millis=0):
     if not os.path.exists(src_path) or not os.path.isfile(src_path):
         print('There is no source file.')
         raise ValueError
@@ -47,12 +47,15 @@ def extract_frames(src_path, dest_dir, size, interval_millis=1000, st_margin_mii
             if cur_frame > num_frames / ((fps * interval_millis) / 1000):
                 break
             video.set(cv2.CAP_PROP_POS_MSEC, start_time)
-            oname = 'frame_interval_millis_' + str(start_time) + '.jpg'
+            oname = '{}_{}'.format(filename, 'frame_interval_millis_' + str(start_time))
         else:
-            oname = 'frame_' + str(cur_frame) + '.jpg'
+            oname = '{}_{}'.format(filename, 'frame_' + str(cur_frame))
+        oname += '.jpg'
         ret, frame = video.read()
         if ret:
             frame = preprocess(frame)
+            if size is None:
+                size = (fwidth, fheight)
             resized = cv2.resize(frame, dsize=size)
             output_dir = os.path.join(dest_dir, filename)
             if not os.path.exists(output_dir):
