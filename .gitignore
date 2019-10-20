@@ -3,3 +3,5 @@
 goorm.manifest
 gcp-key.json
 videos/raw_files
+*.ckpt
+*.pyc

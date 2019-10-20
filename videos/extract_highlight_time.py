@@ -19,7 +19,7 @@ class Higlight:
         self._duration = 100 * 60
         self._times = [0 for x in range(self._duration)]
         self._fill_window = 10
-        self._remove_gap = 3
+        self._remove_threshold = 5
 
     def add_time(self, ff, fb, bf, bb):
         if not ff or not fb or not bf or not bb:
@@ -38,38 +38,45 @@ class Higlight:
             lidx = -1
             ridx = -1
             for w in range(self._fill_window):
-                if self._times[idx + w] == 1:
+                if self._times[idx + w] >= 1:
                     lidx = idx + w
-                if self._times[idx + self._fill_window - w] == 1:
+                    break
+            for w in range(self._fill_window):
+                if self._times[idx + self._fill_window - w] >= 1:
                     ridx = idx + self._fill_window - w
+                    break
             if lidx != -1 and ridx != -1:
                 for w in range(lidx, ridx, 1):
                     self._times[w] = 1
 
     def remove_if_not_has_adjacent(self):
+        idx = 0
+        s0 = []
+        s1 = []
         for idx in range(self._duration):
-            if self._times[idx] != 1:
-                continue
-            has_adjacent = False
-            for i in range(self._remove_gap):
-                if idx + i < self._duration and self._times[idx + i] == 1:
-                    has_adjacent = True
-            for i in range(self._remove_gap):
-                if idx - i >= 0 and self._times[idx - i] == 1:
-                    has_adjacent = True
-            if not has_adjacent:
-                self._times[idx] = 0
+            if self._times[idx] == 0:
+                if len(s1) >= self._remove_threshold:
+                    s1 = []
+                s0.append(idx)
+            else:
+                if len(s0) > self._remove_threshold and 0 < len(s1) < self._remove_threshold:
+                    for i in s1:
+                        self._times[i] = 0
+                    s1 = []
+                s0 = []
+                s1.append(idx)
+        if 0 < len(s1) < self._remove_threshold:
+            for i in s1:
+                self._times[i] = 0
 
     def to_dict(self):
-        print(self._times)
         self.remove_if_not_has_adjacent()
         self.fill_if_has_adjacent()
-        print(self._times)
 
         highlight_scenes = []
         sect_st = -1
         for idx in range(self._duration):
-            if sect_st == -1 and self._times[idx] == 1:
+            if sect_st == -1 and self._times[idx] >= 1:
                 sect_st = idx
             elif sect_st >= 0 and self._times[idx] == 0:
                 highlight_scenes.append({
@@ -131,16 +138,19 @@ def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margi
             frame = preprocess(frame)
             cwidth, cheight = 10, 18
 
-            # front (78, 942, 20, 24) / back (78, 968, 20, 23)
-            # img_dir = '/Users/yongseongkim/Documents/workspace.nosync/highlight-generator/highlight_frames/'
-            cx, cy = 944, 78
+            # spring: (944, 78) (953, 78) (967, 78) (976, 78)
+            # summer: (945, 78) (954, 78) (968, 78) (977, 89)
+            # img_dir = './highlight_frames/'
+            # if not os.path.exists(img_dir):
+            #     os.makedirs(img_dir)
+            cx, cy = 945, 78
             ff_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'ff_frame_' + str(cur_frame) + '.jpg'), ff_img)
             ff_text = pytesseract.image_to_string(
                 Image.fromarray(ff_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
-            cx, cy = 953, 78
+            cx, cy = 954, 78
             fb_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'fb_frame_' + str(cur_frame) + '.jpg'), fb_img)
             fb_text = pytesseract.image_to_string(
@@ -148,14 +158,14 @@ def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margi
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
 
-            cx, cy = 967, 78
+            cx, cy = 968, 78
             bf_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'bf_frame_' + str(cur_frame) + '.jpg'), bf_img)
             bf_text = pytesseract.image_to_string(
                 Image.fromarray(bf_img),
                 lang='eng',
                 config='--psm 10 --oem 0 -c tessedit_char_whitelist=0123456789')
-            cx, cy = 976, 78
+            cx, cy = 977, 78
             bb_img = frame[cy: cy + cheight, cx: cx + cwidth]
             # cv2.imwrite(os.path.join(img_dir, 'bb_frame_' + str(cur_frame) + '.jpg'), bb_img)
             bb_text = pytesseract.image_to_string(
@@ -180,19 +190,20 @@ def extract_time(src_path, interval_millis=1000, st_margin_miilis=None, et_margi
     print('###### complete extracting time from %s' % src_path)
 
 
-video_dir = './raw_files/'
-with open('./highlight.json') as data:
-    videos = json.load(data)
-    for key in videos:
-        filepath = os.path.join(video_dir, key + '.webm')
-        if os.path.exists(filepath):
-            continue
-        print('##### download file: %s, %s' % (key, videos[key]))
-        try:
-            YouTube(videos[key]).streams.filter(adaptive=True, only_video=True).order_by(
-                'resolution').desc().first().download(output_path=video_dir, filename=key)
+if __name__ == "__main__":    
+    video_dir = './raw_files/'
+    with open('./highlight-summer.json') as data:
+        videos = json.load(data)
+        for key in videos:
+            filepath = os.path.join(video_dir, key + '.webm')
             if os.path.exists(filepath):
-                extract_time(src_path=filepath, interval_millis=1000,
-                             st_margin_miilis=15000, et_margin_millis=15000)
-        except Exception as e:
-            print(e)
+                continue
+            print('##### download file: %s, %s' % (key, videos[key]))
+            try:
+                YouTube(videos[key]).streams.filter(adaptive=True, only_video=True).order_by(
+                    'resolution').desc().first().download(output_path=video_dir, filename=key)
+                if os.path.exists(filepath):
+                    extract_time(src_path=filepath, interval_millis=None,
+                                st_margin_miilis=15000, et_margin_millis=15000)
+            except Exception as e:
+                print(e)
