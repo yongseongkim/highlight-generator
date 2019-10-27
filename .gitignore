@@ -3,5 +3,7 @@
 goorm.manifest
 gcp-key.json
 videos/raw_files
+detector/dataset/highlight
+detector/dataset/non-highlight
 *.ckpt
 *.pyc
