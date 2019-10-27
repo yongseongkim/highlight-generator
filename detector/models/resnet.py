@@ -33,7 +33,7 @@ class ResidualBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=2):
+    def __init__(self, block, num_blocks, num_classes):
         super(ResNet, self).__init__()
         first_ch = 16
         self.conv = nn.Conv2d(3, first_ch, kernel_size=3,
@@ -75,5 +75,5 @@ class ResNet(nn.Module):
         return out
 
 
-def ResNet18():
-    return ResNet(ResidualBlock, [2, 2, 2, 2])
+def ResNet18(num_classes):
+    return ResNet(block=ResidualBlock, num_blocks=[2, 2, 2, 2], num_classes=num_classes)

@@ -1,1 +1,1 @@
-from .ingame_detector_model import ResNet18 as IngameDetectorModel
+from .resnet import ResNet18

@@ -1,4 +1,4 @@
-from models import IngameDetectorModel
+from models import ResNet18
 import torch
 import numpy as np
 import cv2
@@ -15,7 +15,7 @@ class IngameSection:
 
 
 class IngameDetector:
-    model = IngameDetectorModel()
+    model = ResNet18(num_classes=2)
 
     def __init__(self, model_path=None):
         # load model

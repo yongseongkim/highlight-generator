@@ -41,13 +41,15 @@ def extract_frames(src_path, dest_dir, size=None, interval_millis=1000, st_margi
         if cur_frame > num_frames:
             break
         if interval_millis is not None:
-            start_time = (st_margin_miilis or 0) + (cur_frame * interval_millis)
+            start_time = (st_margin_miilis or 0) + \
+                (cur_frame * interval_millis)
             if (start_time > (duration - et_margin_millis)) or start_time > duration:
                 break
             if cur_frame > num_frames / ((fps * interval_millis) / 1000):
                 break
             video.set(cv2.CAP_PROP_POS_MSEC, start_time)
-            oname = '{}_{}'.format(filename, 'frame_interval_millis_' + str(start_time))
+            oname = '{}_{}'.format(
+                filename, 'frame_interval_millis_' + str(start_time))
         else:
             oname = '{}_{}'.format(filename, 'frame_' + str(cur_frame))
         oname += '.jpg'
@@ -70,10 +72,14 @@ def extract_frames(src_path, dest_dir, size=None, interval_millis=1000, st_margi
 
 
 if __name__ == "__main__":
-    video_dir = './raw_files/'
     if len(sys.argv) < 3:
         print('source path, output destination directory must not empty.')
         exit()
     src_path = sys.argv[1]
     dest_dir = sys.argv[2]
-    extract_frames(src_path=src_path, dest_dir=dest_dir, size=(16 * 16, 9 * 16), interval_millis=1000)
+    extract_frames(src_path=src_path,
+                   dest_dir=dest_dir,
+                   size=(16 * 14, 9 * 14),
+                   interval_millis=1000,
+                   st_margin_miilis=1260000,
+                   et_margin_millis=2890000)
