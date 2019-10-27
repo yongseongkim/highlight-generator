@@ -13,12 +13,6 @@ from dataset import HighlightDataset, ToTensor
 
 def train_model(model, dataloaders, criterion, optimizer, num_epochs=50):
     since = time.time()
-
-    val_acc_history = []
-
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
-
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -58,13 +52,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=50):
         print()
 
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
-
-    # load best model weights
-    model.load_state_dict(best_model_wts)
-    return model, val_acc_history
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    return model
 
 
 batch_size = 8
