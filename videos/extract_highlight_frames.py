@@ -22,7 +22,6 @@ def preprocess(img):
     # return grayscale_equ
 
 
-
 def extract_frames(src_path, output_dir, interval_millis=1000, st_margin_miilis=None, et_margin_millis=None):
     if not os.path.exists(src_path) or not os.path.isfile(src_path):
         print('there is no source.')
@@ -89,7 +88,8 @@ def extract_frames(src_path, output_dir, interval_millis=1000, st_margin_miilis=
                 if not ff_text or not fb_text or not bf_text or not bb_text:
                     cur_frame += 1
                     continue
-                iff, ifb, ibf, ibb = int(ff_text), int(fb_text), int(bf_text), int(bb_text)
+                iff, ifb, ibf, ibb = int(ff_text), int(
+                    fb_text), int(bf_text), int(bb_text)
                 minutes, seconds = (10 * iff + ifb), (10 * ibf + ibb)
                 if seconds > 60:
                     raise ValueError
@@ -97,11 +97,13 @@ def extract_frames(src_path, output_dir, interval_millis=1000, st_margin_miilis=
                     raise ValueError
                 if not os.path.exists(output_dir):
                     os.makedirs(output_dir)
-                output_path = os.path.join(output_dir, 'frames_{}_{}m_{}s.jpg'.format(str(cur_frame), str(minutes), str(seconds)))
+                output_path = os.path.join(output_dir, 'frames_{}_{}m_{}s.jpg'.format(
+                    str(cur_frame), str(minutes), str(seconds)))
                 resized = cv2.resize(frame, dsize=(16 * 14, 9 * 14), interpolation=cv2.INTER_AREA)
                 cv2.imwrite(output_path, resized)
             except Exception as e:
-                print('Error happend from %s, the order of frame is %d, interval millis is %d, start millis is %d, end millis is %d\n' % (src_path, cur_frame, interval_millis, st_margin_miilis, duration - et_margin_millis), e)
+                print('Error happend from %s, the order of frame is %d, interval millis is %d, start millis is %d, end millis is %d\n' % (
+                    src_path, cur_frame, interval_millis, st_margin_miilis, duration - et_margin_millis), e)
         else:
             break
         cur_frame += 1
@@ -111,17 +113,41 @@ def extract_frames(src_path, output_dir, interval_millis=1000, st_margin_miilis=
 
 
 if __name__ == "__main__":
-    dirname = './raw_files/'
+    dirname = './raw_files/full'
+    # dirname = './raw_files/highlight'
     for filename in os.listdir(dirname):
         filepath = os.path.join(dirname, filename)
         if os.path.isdir(filepath):
             continue
         outname = os.path.splitext(os.path.basename(filename))[0]
-        outdir = os.path.join('./raw_files/images/', outname)
-        if not os.path.exists(outdir):
-            os.makedirs(outdir)
-        else:
-            continue
+        outdir = os.path.join(dirname, 'images/', outname)
+        print(filepath, outdir)
+        # outdir = os.path.join(dirname, 'highlight/images/', outname)
         if os.path.splitext(filepath)[1] == '.webm':
-            extract_frames(filepath, outdir, interval_millis=100,
-                           st_margin_miilis=15000, et_margin_millis=15000)
+            if not os.path.exists(outdir):
+                os.makedirs(outdir)
+            else:
+                continue
+            # extract_frames(filepath,
+            #                outdir,
+            #                interval_millis=200,
+            #                st_margin_miilis=15000, et_margin_millis=15000)
+            try:
+                import re
+                regex = re.compile('[a-zA-Z0-9_]*game_([0-9]+)')
+                num_game = int(regex.match(filename)[1])
+                st_margin_miilis = 0
+                if num_game > 1:
+                    st_margin_miilis = 7 * 60 * 1000
+                else:
+                    st_margin_miilis = 20 * 60 * 1000
+                if 'finals' in filename:
+                    st_margin_miilis += 20 * 60 * 1000
+                extract_frames(filepath,
+                            outdir,
+                            interval_millis=250,
+                            st_margin_miilis=20 * 60 * 1000,
+                            et_margin_millis=6 * 60 * 1000)
+            except Exception as e:
+                print(e)
+                continue
