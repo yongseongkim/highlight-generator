@@ -7,3 +7,4 @@ detector/dataset/highlight
 detector/dataset/non-highlight
 *.ckpt
 *.pyc
+*.zip

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.transforms as transforms
+import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
@@ -56,14 +56,16 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=50):
     return model
 
 
-batch_size = 8
-num_epochs = 10
-len_sequence = 7
-
-
 if __name__ == "__main__":
     curdirpath = os.path.dirname(os.path.realpath(__file__))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    num_epochs = 100
+    features_dim = 64
+    hidden_dim = 32
+    layer_dim = 1
+    batch_size = 64
+    len_sequence = 7
 
     dataset = HighlightDataset(
         len_sequence=len_sequence,
@@ -89,12 +91,17 @@ if __name__ == "__main__":
     }
 
     print('Dataset Size: {}, Train Dataset Size: {}, Val Dataset Size: {}'.format(dataset_size, len(train_indices), len(val_indices)))
-    model = HighlightDetector(features_dim=64,
-                            hidden_dim=32,
-                            layer_dim=1,
-                            resnet_pretrained=True)
-    model_ft, hist = train_model(model,
-                                dataloaders,
-                                nn.MSELoss(),
-                                torch.optim.Adam(model.parameters(), lr=0.001),
-                                num_epochs=num_epochs)
+    model = HighlightDetector(features_dim=features_dim,
+                              hidden_dim=hidden_dim,
+                              layer_dim=layer_dim,
+                              resnet_pretrained=True)
+    model = model.to(device)
+    model_path = './highlight_detector_fd{}_hd{}_ld{}.ckpt'.format(str(features_dim),
+                                                                   str(hidden_dim),
+                                                                   str(layer_dim))
+    model_ft = train_model(model,
+                           dataloaders,
+                           nn.MSELoss(),
+                           torch.optim.Adam(model.parameters(), lr=0.001),
+                           num_epochs=num_epochs)
+    torch.save(model_ft.state_dict(), model_path)
