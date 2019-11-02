@@ -32,7 +32,7 @@ class HighlightDataset(Dataset):
             score = 0
         else:
             img = cv2.imread(self.hightlight_paths[idx])
-            score = 7
+            score = self.len_sequence
         imgs = np.asarray([img[:,
                                i * self.simg_width: (i+1) * self.simg_width,
                                :] for i in range(self.len_sequence)])

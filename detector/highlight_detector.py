@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
 import copy
+import cv2
 import os
 import sys
 import time
@@ -67,10 +68,10 @@ def load_dataset(len_sequence, batch_size, val_ratio=0.1):
     dataset = HighlightDataset(
         len_sequence=len_sequence,
         highlight_dir=os.path.join(
-            curdirpath, './dataset/highlight'
+            curdirpath, './dataset/highlight_seq' + str(len_sequence)
         ),
         non_highlight_dir=os.path.join(
-            curdirpath, './dataset/non-highlight'
+            curdirpath, './dataset/non-highlight_seq' + str(len_sequence)
         ),
         transform=transforms.Compose([
             ToTensor()
@@ -98,8 +99,8 @@ if __name__ == "__main__":
         exit()
 
     # model options
-    len_sequence = 7
-    features_dim = 128
+    len_sequence = 14
+    features_dim = 64
     hidden_dim = 32
     layer_dim = 1
     model = HighlightDetector(features_dim=features_dim,
@@ -115,7 +116,7 @@ if __name__ == "__main__":
         num_epochs = 100
         if len(sys.argv) > 2:
             num_epochs = int(sys.argv[2])
-        batch_size = 64
+        batch_size = 32
         dataloaders = load_dataset(len_sequence=len_sequence, batch_size=batch_size, val_ratio=0.1)
         model = model.to(device)
         model_ft, hist = train_model(model,
@@ -134,11 +135,12 @@ if __name__ == "__main__":
         plt.show()
     elif option == 'run':
         if len(sys.argv) > 2:
-            video_path = sys.argv[2]
+            src_path = sys.argv[2]
         else:
             print('specify a video soruce path')
             exit()
-        model.load_state_dict(torch.load(model_path))
+        model = model.to(device)
+        model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()
 
         video = cv2.VideoCapture(src_path)
@@ -162,10 +164,13 @@ if __name__ == "__main__":
                 if len(frames) == len_sequence:
                     frames.pop(0)
                     frames.append(frame)
-                    transpoed_frames = np.asarray([frame.transpose((2, 0, 1)) for frame in frames])
+                    transpoed_frames = np.asarray([[frame.transpose((2, 0, 1)) for frame in frames]])
                     inputs = torch.from_numpy(transpoed_frames).float()
                     inputs = inputs.to(device)
                     outputs = model(inputs)
-                    print('time: {} ms, output: {}'.format(cur_frame * interval_millis, outputs))
+                    score = outputs[0][0]
+                    if score > 3.5:
+                        print('time: {}m {}s, output: {}'.format(int(cur_frame / 60), int(cur_frame % 60), score))
                 else:
                     frames.append(frame)
+            cur_frame += 1

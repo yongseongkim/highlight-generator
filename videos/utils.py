@@ -1,4 +1,3 @@
-
 import cv2
 import json
 import os
@@ -7,6 +6,8 @@ import re
 from skimage.metrics import structural_similarity as ssim
 from skimage import measure
 from sklearn.cluster import KMeans
+
+len_sequence = 14
 
 def frame_order(str):
     regex = re.compile('frames_([0-9]+)+_([0-9]+)+m_([0-9]+)s.jpg')
@@ -139,7 +140,6 @@ def kmeans_grouping(imgs_dir):
 # imgs in series directory
 def concat_imgs(imgs_dir, trg_dir):
     regex = re.compile('frames_([0-9]+)+_([0-9]+)+m_([0-9]+)s.jpg')
-    len_sequence = 7
     img_paths = []
     for filename in sorted(os.listdir(imgs_dir), key=frame_order):
         filepath = os.path.join(imgs_dir, filename)
@@ -246,7 +246,6 @@ def concat_non_highlight_imgs(non_highlight_dir):
 
 
 def delete_too_similar_img_in_one(imgs_dir):
-    len_sequence = 7
     for imgname in sorted(os.listdir(imgs_dir)):
         imgpath = os.path.join(imgs_dir, imgname)
         img = cv2.imread(imgpath)
@@ -263,25 +262,25 @@ if __name__ == "__main__":
     highlight_imgs_dir = os.path.join(highlight_dir, 'images')
     non_highlight_dir = './raw_files/non-highlight'
 
-    # for dirname, subdirlist, filelist in os.walk(highlight_imgs_dir):
-    #     if os.path.basename(dirname) == 'result':
-    #         for fname in filelist:
-    #             img_path = os.path.join(dirname, fname)
-    #             trgdir = os.path.join(highlight_dir, 'result')
-    #             trgpath = os.path.join(trgdir, fname)
-    #             if not os.path.exists(trgdir):
-    #                 os.makedirs(trgdir)
-    #             shutil.copy(img_path, trgpath)
+    for dirname, subdirlist, filelist in os.walk(highlight_imgs_dir):
+        if os.path.basename(dirname) == 'result':
+            for fname in filelist:
+                img_path = os.path.join(dirname, fname)
+                trgdir = os.path.join(highlight_dir, 'result')
+                trgpath = os.path.join(trgdir, fname)
+                if not os.path.exists(trgdir):
+                    os.makedirs(trgdir)
+                shutil.copy(img_path, trgpath)
     
-    # for dirname, subdirlist, filelist in os.walk(non_highlight_dir):
-    #     if os.path.basename(dirname) == 'result':
-    #         for fname in filelist:
-    #             img_path = os.path.join(dirname, fname)
-    #             trgdir = os.path.join(non_highlight_dir, 'result')
-    #             trgpath = os.path.join(trgdir, fname)
-    #             if not os.path.exists(trgdir):
-    #                 os.makedirs(trgdir)
-    #             shutil.copy(img_path, trgpath)
+    for dirname, subdirlist, filelist in os.walk(non_highlight_dir):
+        if os.path.basename(dirname) == 'result':
+            for fname in filelist:
+                img_path = os.path.join(dirname, fname)
+                trgdir = os.path.join(non_highlight_dir, 'result')
+                trgpath = os.path.join(trgdir, fname)
+                if not os.path.exists(trgdir):
+                    os.makedirs(trgdir)
+                shutil.copy(img_path, trgpath)
 
     # extract_highlight_imgs_with_group(highlight_imgs_dir)
     # concat_highlight_imgs(highlight_imgs_dir)
