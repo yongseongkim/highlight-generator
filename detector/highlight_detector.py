@@ -9,7 +9,7 @@ import cv2
 import os
 import sys
 import time
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from models import HighlightDetector
 from dataset import HighlightDataset, ToTensor
 
@@ -126,13 +126,13 @@ if __name__ == "__main__":
                                num_epochs=num_epochs)
         torch.save(model_ft.state_dict(), model_path)
 
-        plt.xlabel("Training Epochs")
-        plt.ylabel("Validation Accuracy")
-        plt.plot(range(1, num_epochs + 1), hist)
-        plt.ylim((0,1.))
-        plt.xticks(np.arange(1, num_epochs + 1, 1.0))
-        plt.legend()
-        plt.show()
+        # plt.xlabel("Training Epochs")
+        # plt.ylabel("Validation Accuracy")
+        # plt.plot(range(1, num_epochs + 1), hist)
+        # plt.ylim((0,1.))
+        # plt.xticks(np.arange(1, num_epochs + 1, 1.0))
+        # plt.legend()
+        # plt.show()
     elif option == 'run':
         if len(sys.argv) > 2:
             src_path = sys.argv[2]

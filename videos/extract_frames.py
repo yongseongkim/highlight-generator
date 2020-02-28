@@ -79,7 +79,7 @@ if __name__ == "__main__":
     dest_dir = sys.argv[2]
     extract_frames(src_path=src_path,
                    dest_dir=dest_dir,
-                   size=(16 * 14, 9 * 14),
+                #    size=(16 * 14, 9 * 14),
                    interval_millis=1000,
-                   st_margin_miilis=1260000,
-                   et_margin_millis=2890000)
+                   st_margin_miilis=2 * 60 * 1000,
+                   et_margin_millis=2 * 60 * 1000)
