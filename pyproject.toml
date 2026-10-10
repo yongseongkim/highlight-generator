@@ -1,0 +1,39 @@
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14"]
+build-backend = "uv_build"
+
+[project]
+name = "highlight-generator"
+version = "0.1.0"
+description = "Find highlights in sports videos from human pose, on the GPU"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.6",
+    "torchvision",  # needed by ultralytics; listed so it comes from the same CUDA index as torch
+    "ultralytics>=8.4.175",  # `quantize` predict arg
+    "PyNvVideoCodec>=2.2.3",
+    "opencv-python>=4.10",
+    "numpy",
+    "lap>=0.5.12",  # ByteTrack assignment
+    "imageio-ffmpeg>=0.6.0",  # bundled ffmpeg binary for cutting clips
+    "timm>=1.0.30",  # SAM 3 backbone
+    "clip",  # SAM 3 text prompts (ultralytics' CLIP fork)
+]
+
+[project.scripts]
+highlight-pose = "highlight.extract_pose:main"
+highlight-detect = "highlight.detect:main"
+
+[tool.uv.build-backend]
+module-name = "highlight"
+
+# CUDA builds of PyTorch, never the CPU-only wheels; CLIP pinned to a commit.
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+clip = { git = "https://github.com/ultralytics/CLIP.git", rev = "7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
