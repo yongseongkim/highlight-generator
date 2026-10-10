@@ -8,3 +8,12 @@ detector/dataset/non-highlight
 *.ckpt
 *.pyc
 *.zip
+
+# pose + SAM 3 pipeline
+.venv/
+__pycache__/
+*.egg-info/
+models/*.pt
+models/.cache/
+outputs/
+data/
