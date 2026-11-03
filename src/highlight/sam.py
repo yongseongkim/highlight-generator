@@ -4,12 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
 import numpy as np
-import torch
 from ultralytics.models.sam import SAM3SemanticPredictor
 
+from highlight.video import resolve_device
+
 DOWNLOAD_HINT = "uvx --from huggingface_hub hf download facebook/sam3 sam3.pt --local-dir models"
+
+
+def require_weights(model: str | Path) -> None:
+    if not Path(model).is_file():
+        raise FileNotFoundError(
+            f"{model} not found. SAM 3 weights require approved Hugging Face access. "
+            f"Sign in with `uv run hf auth login`, then download with:\n  {DOWNLOAD_HINT}"
+        )
 
 
 @dataclass
@@ -26,11 +36,11 @@ class Sam3:
     crop of exactly that size keeps small objects like a ball at full resolution.
     """
 
-    def __init__(self, model: str | Path, imgsz: int = 644, conf: float = 0.25, device: str = "cuda:0"):
-        if not torch.cuda.is_available():
-            raise RuntimeError("Sam3 needs a CUDA GPU, but PyTorch can't see one")
-        if not Path(model).exists():
-            raise FileNotFoundError(f"{model} not found. SAM 3 weights are gated on Hugging Face; download with:\n  {DOWNLOAD_HINT}")
+    def __init__(self, model: str | Path, imgsz: int = 644, conf: float = 0.25, device: str | None = None):
+        require_weights(model)
+        self.device = resolve_device(device)
+        self.calls = 0
+        self.inference_s = 0.0
         self.predictor = SAM3SemanticPredictor(
             overrides=dict(
                 model=str(model),
@@ -38,7 +48,7 @@ class Sam3:
                 mode="predict",
                 imgsz=imgsz,
                 conf=conf,
-                device=device,
+                device=self.device,
                 quantize=16,
                 save=False,
                 verbose=False,
@@ -47,9 +57,10 @@ class Sam3:
         self.predictor.setup_model()
 
     def detect(self, bgr: np.ndarray, prompts: list[str]) -> list[Detection]:
+        start = time.perf_counter()
         self.predictor.set_image(bgr)
         boxes = self.predictor(text=prompts)[0].boxes
-        return [
+        detections = [
             Detection(prompts[k], float(c), b)
             for b, c, k in zip(
                 boxes.xyxy.float().cpu().numpy(),
@@ -57,3 +68,6 @@ class Sam3:
                 boxes.cls.int().cpu().numpy(),
             )
         ]
+        self.calls += 1
+        self.inference_s += time.perf_counter() - start
+        return detections

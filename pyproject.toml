@@ -11,7 +11,7 @@ dependencies = [
     "torch>=2.6",
     "torchvision",  # needed by ultralytics; listed so it comes from the same CUDA index as torch
     "ultralytics>=8.4.175",  # `quantize` predict arg
-    "PyNvVideoCodec>=2.2.3",
+    "PyNvVideoCodec>=2.2.3; sys_platform != 'darwin'",
     "opencv-python>=4.10",
     "numpy",
     "lap>=0.5.12",  # ByteTrack assignment
@@ -23,14 +23,16 @@ dependencies = [
 [project.scripts]
 highlight-pose = "highlight.extract_pose:main"
 highlight-detect = "highlight.detect:main"
+highlight-court = "highlight.court:main"
+highlight-patterns = "highlight.patterns:main"
 
 [tool.uv.build-backend]
 module-name = "highlight"
 
-# CUDA builds of PyTorch, never the CPU-only wheels; CLIP pinned to a commit.
+# CUDA builds on NVIDIA platforms; macOS PyPI wheels include MPS. CLIP is pinned.
 [tool.uv.sources]
-torch = { index = "pytorch-cu128" }
-torchvision = { index = "pytorch-cu128" }
+torch = { index = "pytorch-cu128", marker = "sys_platform != 'darwin'" }
+torchvision = { index = "pytorch-cu128", marker = "sys_platform != 'darwin'" }
 clip = { git = "https://github.com/ultralytics/CLIP.git", rev = "7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40" }
 
 [[tool.uv.index]]

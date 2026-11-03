@@ -1,0 +1,213 @@
+{
+  "date": "2026-10-31",
+  "base_pr": "https://github.com/yongseongkim/highlight-generator/pull/34",
+  "base_pr_head": "057ee4f2a34304433177e14ac17287c2470c8b31",
+  "local_branch": "benchmark/macbook-mps",
+  "hardware": {
+    "chip_type": "Apple M4 Pro",
+    "machine_model": "Mac16,8",
+    "machine_name": "MacBook Pro",
+    "number_processors": "proc 14:10:4:0",
+    "physical_memory": "48 GB"
+  },
+  "gpu": {
+    "spdisplays_metal": "spdisplays_supported",
+    "sppci_cores": "20",
+    "sppci_model": "Apple M4 Pro"
+  },
+  "power_source": "AC",
+  "software": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "python": "3.11.13",
+    "torch": "2.15.0",
+    "ultralytics": "8.4.175",
+    "device": "mps"
+  },
+  "scope": "Full-video pose stage only; badminton has no sport rules in PR #34. CPU decode/upload, GPU model, CPU tracking. No cached poses.",
+  "changes_required": [
+    "Skip PyNvVideoCodec on macOS and use the PyPI MPS-enabled PyTorch wheel.",
+    "Decode with OpenCV on CPU, upload sampled frames to MPS, and allow MPS pose inference."
+  ],
+  "settings": {
+    "model": "yolo11s-pose.pt",
+    "input_width": 1920,
+    "stride": 3,
+    "quantize": 16,
+    "overlay": false
+  },
+  "actual_model_check": {
+    "device": "mps:0",
+    "dtype": "torch.float16",
+    "people_in_first_frame": 6
+  },
+  "runs": [
+    {
+      "exit_code": 0,
+      "wall_s": 464.24320891615935,
+      "duration_s": 712.484,
+      "sampled_frames": 14224,
+      "sampled_fps": 30.63911270389483,
+      "wall_realtime_multiple": 1.5347214268645815,
+      "peak_rss_gib": 0.7653961181640625,
+      "detections": 88505,
+      "unique_tracks": 532,
+      "id": "lp2hhnV7QXY",
+      "title": "창재 광민 vs 연일형 용성",
+      "url": "https://www.youtube.com/watch?v=lp2hhnV7QXY",
+      "format_id": "335+251",
+      "sha256": "913711efc6d86e68539af60cc41d74532ca9cf834090bbd4b06b15ffa17bdd02",
+      "video_probe": {
+        "codec_name": "vp9",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "60000/1001",
+        "avg_frame_rate": "10667750/178121",
+        "duration": "712.484000",
+        "nb_frames": "42671",
+        "side_data_list": [
+          {}
+        ]
+      },
+      "timing": {
+        "load_s": 0.06629070802591741,
+        "first_frame_s": 1.189905917039141,
+        "processing_s": 461.74809825001284,
+        "steady_decode_s": 29.404793068999425,
+        "steady_pose_s": 431.06844008225016,
+        "steady_overlay_s": 0.0017655417323112488
+      },
+      "log": "outputs/macbook/run-2026-10-31/lp2hhnV7QXY.log"
+    },
+    {
+      "exit_code": 0,
+      "wall_s": 495.75907895807177,
+      "duration_s": 719.334,
+      "sampled_frames": 14373,
+      "sampled_fps": 28.99190475786643,
+      "wall_realtime_multiple": 1.4509749403113539,
+      "peak_rss_gib": 0.874755859375,
+      "detections": 109370,
+      "unique_tracks": 630,
+      "id": "iw0UE2AipIc",
+      "title": "창재 용성 vs 철원형님 윤현형님",
+      "url": "https://www.youtube.com/watch?v=iw0UE2AipIc",
+      "format_id": "303+251",
+      "sha256": "16e0c21f43773fbfa8726beaf6db07e659d879037973a4b036803ef50e39dde5",
+      "video_probe": {
+        "codec_name": "vp9",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "60000/1001",
+        "avg_frame_rate": "21558500/359667",
+        "duration": "719.334000",
+        "nb_frames": "43117"
+      },
+      "timing": {
+        "load_s": 0.04921191604807973,
+        "first_frame_s": 1.096734374994412,
+        "processing_s": 489.09304737485945,
+        "steady_decode_s": 51.32514301338233,
+        "steady_pose_s": 436.6033559953794,
+        "steady_overlay_s": 0.001838221913203597
+      },
+      "log": "outputs/macbook/run-2026-10-31/iw0UE2AipIc.log"
+    },
+    {
+      "exit_code": 0,
+      "wall_s": 402.2746373328846,
+      "duration_s": 594.7710000000001,
+      "sampled_frames": 11871,
+      "sampled_fps": 29.509690391384726,
+      "wall_realtime_multiple": 1.4785197593946835,
+      "peak_rss_gib": 0.824432373046875,
+      "detections": 70267,
+      "unique_tracks": 401,
+      "id": "0dj21Djz180",
+      "title": "창재 상윤 vs 용성 윤현형님",
+      "url": "https://www.youtube.com/watch?v=0dj21Djz180",
+      "format_id": "303+251",
+      "sha256": "5d3a28ef829d75c14ac81c6fcffcbcdff1d5254c06692b0e85c70cacabaa137a",
+      "video_probe": {
+        "codec_name": "vp9",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "60000/1001",
+        "avg_frame_rate": "35611000/594771",
+        "duration": "594.771000",
+        "nb_frames": "35611"
+      },
+      "timing": {
+        "load_s": 0.04833991709165275,
+        "first_frame_s": 0.9864860421512276,
+        "processing_s": 400.0280576250516,
+        "steady_decode_s": 43.767281285021454,
+        "steady_pose_s": 355.20954393572174,
+        "steady_overlay_s": 0.0014052074402570724
+      },
+      "log": "outputs/macbook/run-2026-10-31/0dj21Djz180.log"
+    }
+  ],
+  "total": {
+    "duration_s": 2026.589,
+    "wall_s": 1362.2769252071157,
+    "realtime_multiple": 1.487648335298555,
+    "decoded_frames": 121399,
+    "sampled_frames": 40468
+  },
+  "system_monitor": {
+    "coverage": "Started partway through the second video at user request; includes subsequent runs and 15 seconds after completion.",
+    "started_at": "2026-10-31T19:24:28+0900",
+    "interval_s": 2.0,
+    "active_samples": 270,
+    "cpu_mean_percent": 9.304074074074075,
+    "gpu_mean_percent": 88.20370370370371,
+    "available_ram_min_gib": 13.391555786132812,
+    "swap_used_start_gib": 2.1383056640625,
+    "swap_used_end_gib": 2.1383056640625,
+    "swap_in_bytes": 645398528,
+    "swap_out_bytes": 2211840,
+    "thermal_states": [
+      "fair"
+    ],
+    "idle_gpu_mean_percent": 1.7777777777777777,
+    "notes": [
+      "CPU percent is normalized across all logical CPUs; process CPU uses 100% per logical CPU.",
+      "GPU and memory counters are whole-system values, including other apps; GPU memory is shared RAM.",
+      "Thermal pressure is NSProcessInfo.thermalState, not a temperature in Celsius.",
+      "GPU utilization and memory are sampled IOAccelerator driver counters."
+    ]
+  },
+  "verification": [
+    {
+      "id": "lp2hhnV7QXY",
+      "decoded_frames": 42671,
+      "sampled_frames": 14224,
+      "detections": 88505,
+      "timestamps_strictly_increasing": true,
+      "status": "passed"
+    },
+    {
+      "id": "iw0UE2AipIc",
+      "decoded_frames": 43117,
+      "sampled_frames": 14373,
+      "detections": 109370,
+      "timestamps_strictly_increasing": true,
+      "status": "passed"
+    },
+    {
+      "id": "0dj21Djz180",
+      "decoded_frames": 35611,
+      "sampled_frames": 11871,
+      "detections": 70267,
+      "timestamps_strictly_increasing": true,
+      "status": "passed"
+    }
+  ],
+  "artifacts": {
+    "raw_benchmark": "outputs/macbook/run-2026-10-31/benchmark.json",
+    "monitor_summary": "outputs/macbook/run-2026-10-31/mac_monitor_summary.json",
+    "chart": "outputs/macbook/run-2026-10-31/mac-performance.png",
+    "csv": "outputs/macbook/run-2026-10-31/mac-performance.csv",
+    "measured_code_patch": "outputs/macbook/measured-code.patch"
+  }
+}

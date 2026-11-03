@@ -1,4 +1,4 @@
-"""Detect people and their 2D pose in a video, entirely on the GPU.
+"""Detect people and their 2D pose in a video with CUDA or Apple MPS.
 
     highlight-pose path/to/video.mp4 --stride 3
 
@@ -14,11 +14,16 @@ from pathlib import Path
 
 import cv2
 
-from highlight.pose import PoseDetector, save_poses
-from highlight.video import NvdecReader
+from highlight.pose import PoseDetector, file_identity, save_poses
+from highlight.video import open_video, resolve_device
 from highlight.viz import draw_poses
 
 MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
+
+
+def model_path(value: str | Path) -> Path:
+    model = Path(value)
+    return MODELS_DIR / model if model.parent == Path(".") else model
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -30,19 +35,27 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--input-width", type=int, default=1920, help="model input width, multiple of 32 (default: 1920; smaller misses distant players)")
     parser.add_argument("--conf", type=float, default=0.25, help="minimum person confidence")
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--device", choices=["mps", "cuda", "cuda:0", "cuda:1"], help="default: CUDA when available, otherwise Apple MPS")
     parser.add_argument("--no-overlay", action="store_true", help="skip writing the skeleton overlay video")
     args = parser.parse_args(argv)
+    if args.stride < 1:
+        parser.error("--stride must be positive")
+    if args.input_width < 32 or args.input_width % 32:
+        parser.error("--input-width must be a positive multiple of 32")
+    if not 0 < args.conf <= 1:
+        parser.error("--conf must be in (0, 1]")
+    device = resolve_device(args.device, args.gpu)
 
-    model = Path(args.model)
-    if model.parent == Path("."):
-        model = MODELS_DIR / model
+    model = model_path(args.model)
+    source_identity = file_identity(args.video)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     npz_path = args.out_dir / f"{args.video.stem}_poses.npz"
     overlay_path = args.out_dir / f"{args.video.stem}_pose.mp4"
 
     t_start = time.perf_counter()
-    reader = NvdecReader(str(args.video), gpu_id=args.gpu)
-    detector = PoseDetector(model, input_width=args.input_width, device=f"cuda:{args.gpu}", conf=args.conf)
+    reader = open_video(str(args.video), device)
+    detector = PoseDetector(model, input_width=args.input_width, device=device, conf=args.conf)
+    print(f"device   {device}; decoder {type(reader).__name__}", flush=True)
     info = reader.info
     writer = None
     if not args.no_overlay:
@@ -50,7 +63,7 @@ def main(argv: list[str] | None = None) -> None:
         writer = cv2.VideoWriter(str(overlay_path), fourcc, info.fps / args.stride, (info.width, info.height))
     t_loaded = time.perf_counter()
 
-    # The first frame pays for CUDA/model warmup, so per-frame timings skip it.
+    # The first frame pays for GPU/model warmup, so per-frame timings skip it.
     sampled = []
     t_decode = t_pose = t_overlay = 0.0
     frames = reader.frames(args.stride)
@@ -67,6 +80,8 @@ def main(argv: list[str] | None = None) -> None:
             writer.write(draw_poses(bgr, poses))
         t3 = time.perf_counter()
         sampled.append((frame.index, frame.time_s, poses))
+        if len(sampled) % 300 == 0:
+            print(f"progress {frame.time_s:.1f} s of video, {len(sampled)} sampled frames, {time.perf_counter() - t_start:.1f} s elapsed", flush=True)
         if len(sampled) > 1:
             t_decode += t1 - t0
             t_pose += t2 - t1
@@ -88,8 +103,21 @@ def main(argv: list[str] | None = None) -> None:
             "frames": reader.frames_decoded,
             "stride": args.stride,
             "model": model.name,
+            "source_identity": source_identity,
+            "model_identity": file_identity(model),
             "input_width": args.input_width,
             "conf": args.conf,
+            "device": device,
+            "decoder": type(reader).__name__,
+            "quantize": 16,
+            "timing": {
+                "load_s": t_loaded - t_start,
+                "first_frame_s": t_first if sampled else 0.0,
+                "processing_s": t_end - t_start,
+                "steady_decode_s": t_decode,
+                "steady_pose_s": t_pose,
+                "steady_overlay_s": t_overlay,
+            },
         },
     )
 

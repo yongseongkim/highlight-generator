@@ -15,7 +15,7 @@ import torch
 
 from highlight.candidates import Window, window_at
 from highlight.sam import Sam3
-from highlight.video import NvdecReader
+from highlight.video import open_video
 
 BALL = "basketball"
 HOOP = "basketball hoop"
@@ -144,7 +144,7 @@ def analyze_shots(video: str, windows: list[Window], sam: Sam3, stride: int = 2)
         return [], None
     samples: list[list[BallSample]] = [[] for _ in windows]
     hoop = None
-    for frame in NvdecReader(video).frames(stride):
+    for frame in open_video(video, sam.device).frames(stride):
         if frame.time_s > windows[-1].end_s:
             break
         i = window_at(windows, frame.time_s)
@@ -153,10 +153,14 @@ def analyze_shots(video: str, windows: list[Window], sam: Sam3, stride: int = 2)
         if hoop is None:
             hoop = find_hoop(sam, _to_bgr(frame.rgb))
             if hoop is None:
+                if sam.calls % 60 == 0:
+                    print(f"progress SAM 3: {sam.calls} hoop-search calls, {frame.time_s:.1f}/{windows[-1].end_s:.1f} s of video", flush=True)
                 continue
             x0, y0, size = hoop.crop_window(frame.rgb.shape[1], frame.rgb.shape[0])
         crop = _to_bgr(frame.rgb[y0 : y0 + size, x0 : x0 + size])
         samples[i].extend(ball_samples(sam, crop, x0, y0, hoop, frame.time_s))
+        if sam.calls % 60 == 0:
+            print(f"progress SAM 3: {sam.calls} calls, {frame.time_s:.1f}/{windows[-1].end_s:.1f} s of video, {sam.inference_s:.1f} s in inference", flush=True)
     return [classify_shot(ball_track(s)) for s in samples], hoop
 
 

@@ -1,0 +1,200 @@
+{
+  "date": "2026-11-02",
+  "status": "complete",
+  "hardware": {
+    "chip_type": "Apple M4 Pro",
+    "machine_model": "Mac16,8",
+    "machine_name": "MacBook Pro",
+    "number_processors": "proc 14:10:4:0",
+    "physical_memory": "48 GB"
+  },
+  "gpu_cores": 20,
+  "software": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "python": "3.11.13",
+    "torch": "2.15.0",
+    "ultralytics": "8.4.175"
+  },
+  "scope": "Fresh whole-video YOLO pose and sparse SAM3 detail frames on all three original inputs. Clips/detail JPEGs disabled. Court diagnostics enabled. No target court supplied.",
+  "comparison_limit": "The old baseline ran basketball rules on badminton. This pipeline uses different selection rules, lower pose resolution/rate, and sparse object evidence. Speed comparisons do not establish equivalent accuracy.",
+  "settings": {
+    "model": "yolo11s-pose.pt",
+    "input_width": 1280,
+    "stride": null,
+    "quantize": 16,
+    "overlay": false,
+    "sport": "badminton",
+    "pose_target_fps": 10,
+    "detail_backend": "sam3",
+    "detail_keyframes": 3,
+    "max_detail_calls": 90,
+    "max_highlights": 30,
+    "highlight_budget_s": 120,
+    "sam_model": "models/sam3.pt",
+    "object_model": null,
+    "court": null,
+    "clips": false
+  },
+  "weights_sha256": "9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e",
+  "runs": [
+    {
+      "id": "lp2hhnV7QXY",
+      "duration_s": 712.484,
+      "wall_s": 192.34275104105473,
+      "pose_s": 140.19144662492909,
+      "court_s": 0.945856292033568,
+      "selection_s": 0.8674535830505192,
+      "sam_load_s": 6.203572083031759,
+      "sam_analysis_s": 43.017048333073035,
+      "sam_inference_s": 30.074122162302956,
+      "sam_calls": 60,
+      "candidate_windows": 20,
+      "selected_video_s": 120.00000000000001,
+      "sampled_frames": 7112,
+      "decoded_frames": 42671,
+      "peak_process_rss_gib": 7.13824462890625,
+      "objects_returned": 441,
+      "occupied_time_bins": 20,
+      "temporal_bins": 20,
+      "baseline_wall_s": 6367.371256875107,
+      "baseline_sam_calls": 12040,
+      "speedup_vs_basketball_baseline": 33.10429544348162,
+      "input_sha256": "913711efc6d86e68539af60cc41d74532ca9cf834090bbd4b06b15ffa17bdd02"
+    },
+    {
+      "id": "iw0UE2AipIc",
+      "duration_s": 719.334,
+      "wall_s": 208.26932541583665,
+      "pose_s": 159.8096240828745,
+      "court_s": 0.6258884998969734,
+      "selection_s": 0.9848119581583887,
+      "sam_load_s": 6.076640707906336,
+      "sam_analysis_s": 39.76034979196265,
+      "sam_inference_s": 31.429286413127556,
+      "sam_calls": 60,
+      "candidate_windows": 20,
+      "selected_video_s": 120.0,
+      "sampled_frames": 7187,
+      "decoded_frames": 43117,
+      "peak_process_rss_gib": 6.8768310546875,
+      "objects_returned": 548,
+      "occupied_time_bins": 20,
+      "temporal_bins": 20,
+      "baseline_wall_s": 5534.073218249949,
+      "baseline_sam_calls": 9368,
+      "speedup_vs_basketball_baseline": 26.571715288367386,
+      "input_sha256": "16e0c21f43773fbfa8726beaf6db07e659d879037973a4b036803ef50e39dde5"
+    },
+    {
+      "id": "0dj21Djz180",
+      "duration_s": 594.7710000000001,
+      "wall_s": 179.46552579198033,
+      "pose_s": 133.46175649994984,
+      "court_s": 0.47652420797385275,
+      "selection_s": 0.707457791082561,
+      "sam_load_s": 5.781631333986297,
+      "sam_analysis_s": 37.56945491582155,
+      "sam_inference_s": 30.47589383414015,
+      "sam_calls": 60,
+      "candidate_windows": 20,
+      "selected_video_s": 120.0,
+      "sampled_frames": 5936,
+      "decoded_frames": 35611,
+      "peak_process_rss_gib": 6.87213134765625,
+      "objects_returned": 1245,
+      "occupied_time_bins": 20,
+      "temporal_bins": 20,
+      "baseline_wall_s": 4333.604543375084,
+      "baseline_sam_calls": 7533,
+      "speedup_vs_basketball_baseline": 24.147281346937874,
+      "input_sha256": "5d3a28ef829d75c14ac81c6fcffcbcdff1d5254c06692b0e85c70cacabaa137a"
+    }
+  ],
+  "totals": {
+    "duration_s": 2026.589,
+    "wall_s": 580.0776022488717,
+    "video_seconds_per_wall_second": 3.4936515254911167,
+    "speedup_vs_basketball_baseline": 27.987719152677762,
+    "sam_calls": 180,
+    "baseline_sam_calls": 28941,
+    "pose_s": 433.46282720775343,
+    "sam_analysis_s": 120.34685304085724
+  },
+  "resources": {
+    "mean_whole_mac_cpu_percent": 16.46712802768166,
+    "mean_whole_mac_gpu_percent": 79.28373702422145,
+    "peak_process_rss_gib": 7.13824462890625,
+    "min_available_ram_gib": 12.998565673828125,
+    "peak_whole_mac_gpu_memory_in_use_gib": 6.2310638427734375,
+    "thermal_states": [
+      "nominal"
+    ],
+    "notes": [
+      "CPU percent is normalized across all logical CPUs; process CPU uses 100% per logical CPU.",
+      "GPU and memory counters are whole-system values, including other apps; GPU memory is shared RAM.",
+      "Thermal pressure is NSProcessInfo.thermalState, not a temperature in Celsius.",
+      "GPU utilization and memory are sampled IOAccelerator driver counters."
+    ]
+  },
+  "export": {
+    "candidate_clips": 60,
+    "wall_s": 16.550064417067915,
+    "every_clip_nonempty_and_decodable": true,
+    "measured_separately_from_model_benchmark": true
+  },
+  "additional_validation": {
+    "unit_tests_passed": 13,
+    "unit_command": "uv run python -m unittest discover -s tests -v",
+    "yolo_object_backend_real_mps_smoke": true,
+    "yolo_model": "yolo11n.pt",
+    "yolo_calls": 4,
+    "yolo_smoke_sam_checkpoint_absent": true,
+    "real_pose_cache_hit_with_details_disabled": true
+  },
+  "visual_spot_check": {
+    "frames_reviewed": 9,
+    "findings": [
+      "Raw SAM detections include false positives and stationary spare shuttles.",
+      "Uncalibrated candidate selection includes players on neighboring courts."
+    ],
+    "implication": "Use court calibration to focus players and evaluate a dedicated temporal shuttle tracker before inferring contacts/outcomes. These are unvalidated highlight candidates."
+  },
+  "verification": {
+    "strict_json": true,
+    "fresh_pose_all_videos": true,
+    "frame_counts_match_baseline": true,
+    "input_checksums_match_baseline": true,
+    "measured_source_unchanged": true,
+    "pose_samples_match_stride": true,
+    "selection_duration_count_and_overlap_budgets": true,
+    "detail_call_and_per_moment_budgets": true,
+    "all_sam_mps_fp16": true,
+    "all_active_time_bins_covered": true,
+    "sam_weights_match_original_baseline": true,
+    "selection_accuracy_validated": false
+  },
+  "artifacts": {
+    "benchmark": "outputs/macbook/fast-full-2026-11-02/benchmark.json",
+    "chart": "outputs/macbook/fast-full-2026-11-02/mac-performance.png",
+    "csv": "outputs/macbook/fast-full-2026-11-02/mac-performance.csv",
+    "export_manifest": "outputs/macbook/fast-full-2026-11-02/exported/manifest.json",
+    "candidate_contact_sheet": "outputs/macbook/fast-full-2026-11-02/exported/candidate-contact-sheet.jpg"
+  },
+  "source_sha256": {
+    "src/highlight/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/highlight/badminton.py": "070bbfa8481276e6b2c13f1bfc18e91d3a2775bdfc7e5856b71dd102d01cd82a",
+    "src/highlight/badminton_events.py": "f508dbef5d70c5419fcd739560395e67d9ff71956d6bdf83f1a30c7d474d0e44",
+    "src/highlight/candidates.py": "1ca8b86fff1e97de3e4381b21a2b658ceb63efcaecd00b52a853f3a17099b93f",
+    "src/highlight/court.py": "b42466c0b4fdc16e7b588f576a2c13792f90d40e1b3d3b04d515545b53b32231",
+    "src/highlight/detect.py": "c0579a6279acba66727963c3ddebc42681275d1c23d4557f1a096e498e417022",
+    "src/highlight/extract_pose.py": "5e3dc6d1d02d8c375ca0e8570cd2ba8e1d45f25421df17eeeb458041bd8b1434",
+    "src/highlight/objects.py": "5229735799ebbeb85d64d986b69266502b077704dd5e39f49e142e6be7a24584",
+    "src/highlight/pose.py": "a4a73f0371fc0130682d2756f1c3acd9f60c17682ade59276aafc75d5ceb1e26",
+    "src/highlight/sam.py": "b8973bffec1cfd381551a49c959ea1bda04fca769cafa858c9d8177524ee18f9",
+    "src/highlight/shots.py": "9d88545fe2b0e7e764b6fb14a5b685a20ccd549ad2de332e4df470d308586ce2",
+    "src/highlight/signals.py": "f38748237a8fb77b740c2c586c7d570371fdac96f712cb7ebc204a74fb5d480e",
+    "src/highlight/video.py": "1ad0482ac40b85515076c8944ff34964ac4ec26bf37f8431e0366dbc38af6d2a",
+    "src/highlight/viz.py": "d872d6f6b92a521273f41d322068e487b19dda65213bda2c472863e327df15e6"
+  },
+  "power_at_completion": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=22347875)\t80%; AC attached; not charging present: true"
+}

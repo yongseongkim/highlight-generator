@@ -14,6 +14,8 @@ from ultralytics.trackers.track import TRACKER_MAP
 from ultralytics.utils import YAML, IterableSimpleNamespace
 from ultralytics.utils.checks import check_yaml
 
+from highlight.video import resolve_device
+
 # COCO keypoint order used by YOLO pose models.
 KEYPOINT_NAMES = (
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -61,10 +63,9 @@ class PoseDetector:
         conf: float = 0.25,
         tracker: str = "bytetrack.yaml",
     ):
-        if not torch.cuda.is_available():
-            raise RuntimeError("PoseDetector needs a CUDA GPU, but PyTorch can't see one")
-        if input_width % STRIDE:
-            raise ValueError(f"input_width must be a multiple of {STRIDE}, got {input_width}")
+        device = resolve_device(device)
+        if input_width < STRIDE or input_width % STRIDE:
+            raise ValueError(f"input_width must be a positive multiple of {STRIDE}, got {input_width}")
         self.model = YOLO(str(model))
         self.input_width = input_width
         self.device = device
@@ -136,6 +137,13 @@ def load_poses(path: str | Path) -> tuple[dict[str, np.ndarray], dict]:
         arrays = {k: data[k] for k in data.files if k != "meta"}
         meta = json.loads(str(data["meta"]))
     return arrays, meta
+
+
+def file_identity(path: str | Path) -> dict:
+    """Fast local cache identity; catches source/weights replaced at the same path."""
+    path = Path(path).resolve()
+    stat = path.stat()
+    return {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
 
 
 def poses_by_frame(arrays: dict[str, np.ndarray]) -> dict[int, FramePoses]:

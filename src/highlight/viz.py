@@ -10,7 +10,7 @@ import numpy as np
 from highlight.candidates import Window, window_at
 from highlight.pose import SKELETON, FramePoses
 from highlight.shots import BallSample, Hoop, ShotResult
-from highlight.video import NvdecReader
+from highlight.video import open_video, resolve_device
 
 # BGR colors, one per track ID (cycled).
 PALETTE = (
@@ -89,6 +89,7 @@ def render_shot_videos(
     poses: dict[int, FramePoses],
     stride: int,
     out_paths: list[Path],
+    device: str | None = None,
 ) -> None:
     """One video per window: YOLO-pose skeletons plus SAM 3's hoop, ball path and verdict.
 
@@ -96,7 +97,7 @@ def render_shot_videos(
     stride, so each frame shows the skeletons from the nearest pose frame, at most one
     frame away.
     """
-    reader = NvdecReader(video)
+    reader = open_video(video, resolve_device(device))
     pose_frames = np.array(sorted(poses))
     writers: list[cv2.VideoWriter | None] = [None] * len(windows)
     for frame in reader.frames(stride):
