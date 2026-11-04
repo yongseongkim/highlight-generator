@@ -2,10 +2,14 @@
 
 Finds the highlights in your own sports videos and cuts them into clips.
 
-Most of a game is nothing happening, so the expensive model shouldn't look at all of it.
-A cheap pose model runs over the whole video and flags the moments where a player does
-something (arms up for a shot, a leg swung for a kick). SAM 3 then looks only at those
-moments and, for basketball, decides whether the shot went in.
+Highlight candidates should follow a sport's meaningful unit: a badminton rally,
+or the build-up to a basketball/football score. Boundary/outcome events define
+those intervals first. Pose and optional SAM3 evidence then help rank what happens
+inside an interval. Individual arm movements are auxiliary signals, not rally boundaries.
+
+The repository includes event-driven unit selection and experimental pose/SAM
+detectors. A continuous badminton serve/landing detector and a football goal detector
+are still required to generate those observations automatically.
 
 On NVIDIA, frames are decoded with NVDEC and stay in GPU memory through preprocessing
 and inference. Pose extraction also supports Apple MPS: OpenCV decodes on the CPU and
@@ -32,6 +36,81 @@ uvx --from huggingface_hub hf download facebook/sam3 sam3.pt --local-dir models
 ```
 
 The YOLO11-pose weights are downloaded into `models/` on the first run.
+
+### Rallies and scoring plays
+
+| Sport | Candidate unit | Boundary/outcome observations |
+| --- | --- | --- |
+| Badminton | One rally, including hairpins, drives, and overheads | Service until shuttle landing, landing out, net fault, fault, let, or point-end observation |
+| Basketball | Scoring play with lead-up context | Made-basket observation, optionally an attack/possession start |
+| Football | Scoring play with attack context | Goal observation, optionally an attack start |
+
+```sh
+uv run highlight-plays path/to/game.mp4 --sport badminton \
+  --events events.json --poses outputs/game_poses.npz --court court.json \
+  --out-dir outputs/plays/game --reel
+```
+
+The `events.json` input comes from a boundary/outcome detector or reviewed
+annotations. Example **manually reviewed** observations (timestamps are illustrative):
+
+```json
+{
+  "video": "game.mp4",
+  "sport": "badminton",
+  "court_id": "main",
+  "source": "manual_review",
+  "events": [
+    {"time_s": 12.4, "kind": "serve", "verified": true},
+    {"time_s": 28.1, "kind": "shuttle_landed", "verified": true},
+    {"time_s": 35.0, "kind": "serve", "verified": true},
+    {"time_s": 48.2, "kind": "fault", "verified": true}
+  ]
+}
+```
+
+Paths in the event file are resolved relative to that file. `court_id` excludes
+neighboring-court events, and pose ranking requires a court polygon. Track loss,
+occlusion, and a net-touch action do **not** end a rally. Padding does not merge
+adjacent rallies. A duration budget selects or skips whole units; it never shortens
+a rally to fit. `--verified-only` requires both boundary observations to be verified
+by the event source, independently of the interest score. Unobserved starts/ends
+remain explicitly unknown.
+
+Optionally pass `--sam-evidence outputs/game_highlights.json` with the cached poses
+to reuse object evidence when ranking actions inside each rally. It adds no model
+calls and cannot change or verify a rally boundary.
+
+Basketball `highlight-detect` output now includes inferred `basket_made` events
+from its SAM3 rim-crossing rule and wider `play_candidates`. These observations can
+be passed directly to `highlight-plays --sport basketball --events ...`. They are
+not verified scoreboard readings. Football requires externally supplied `goal`
+events; running/kicking poses cannot manufacture a goal.
+
+`highlight-plays` itself consumes events and does not train or run a serve,
+landing, or football-goal detector. Continuous shuttle tracking plus contact/outcome
+recognition is the missing badminton boundary source. The current sparse SAM3
+cache does not contain enough flight history to establish these endpoints.
+
+For diagnosing that limitation, an explicit estimate mode is available:
+
+```sh
+uv run highlight-plays path/to/game.mp4 --sport badminton \
+  --estimate-from-poses --poses outputs/game_poses.npz --court court.json \
+  --out-dir outputs/activity-proposals --no-clips
+```
+
+It emits activity/pause proposals with unverified boundaries. It does not call a
+pause or a missing shuttle a landing. In the existing footage this can merge many
+rallies into a long activity interval, so these outputs are not confirmed rally
+segments. The action-pattern workflow below remains useful for inspecting/ranking
+motion inside future event-defined rallies.
+
+The [three-video data audit](benchmarks/rally-boundary-data-audit-2026-11-04.json)
+took 9.05 seconds using cached poses, with no YOLO/SAM calls and peak process RSS
+of 0.30 GiB. It produced 1, 2, and 1 long activity intervals, **zero verified rallies**,
+and no selected clips under the 120-second budget. This measures an unsuccessful
+pose-boundary diagnostic, not automatic rally extraction or model inference speed.
 
 ### Fast badminton highlights
 

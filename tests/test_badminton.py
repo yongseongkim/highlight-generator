@@ -209,6 +209,8 @@ class ExistingSportTests(unittest.TestCase):
             report = json.loads((root / "video_highlights.json").read_text())
             self.assertTrue(report["timing"]["pose_reused"])
             self.assertEqual(report["sport"], "football")
+            self.assertEqual(report["events"], [])
+            self.assertEqual(report["play_candidates"], [])
 
 
 if __name__ == "__main__":

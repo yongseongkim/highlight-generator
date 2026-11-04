@@ -35,6 +35,7 @@ from highlight.signals import cue_series
 from highlight.viz import render_shot_videos
 from highlight.video import resolve_device
 from highlight.badminton import add_arguments, run as run_badminton, validate_args as validate_badminton
+from highlight.game_units import SportEvent, scoring_units
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -135,6 +136,15 @@ def main(argv: list[str] | None = None) -> None:
             print(f"  {path}")
 
     json_path = args.out_dir / f"{args.video.stem}_highlights.json"
+    # Outcome observations can drive a full scoring-play candidate independently
+    # of the action windows used to find the shot. The rule is inferred evidence,
+    # not a verified scoreboard observation.
+    sport_events = []
+    if shots is not None:
+        sport_events = [SportEvent(float(shot.made_at_s), "basket_made", source="sam3_rim_crossing_rule",
+                                  event_id=f"window-{i}", data={"window_index": i})
+                        for i, shot in enumerate(shots) if shot.made and shot.made_at_s is not None]
+    plays = scoring_units(sport_events, args.sport, duration_s)
     timings["total_before_json_s"] = time.perf_counter() - started
     json_path.write_text(
         json.dumps(
@@ -144,6 +154,8 @@ def main(argv: list[str] | None = None) -> None:
                 "cue": sport.cue,
                 "threshold": sport.threshold,
                 "duration_s": duration_s,
+                "events": [asdict(event) for event in sport_events],
+                "play_candidates": [{**asdict(play), "boundary_status": play.boundary_status} for play in plays],
                 "timing": timings,
                 "settings": {"pose_stride": args.stride, "input_width": args.input_width, "conf": args.conf,
                              "sam_stride": args.sam_stride, "sam_model": str(args.sam_model)},

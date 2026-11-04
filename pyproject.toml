@@ -25,6 +25,7 @@ highlight-pose = "highlight.extract_pose:main"
 highlight-detect = "highlight.detect:main"
 highlight-court = "highlight.court:main"
 highlight-patterns = "highlight.patterns:main"
+highlight-plays = "highlight.plays:main"
 
 [tool.uv.build-backend]
 module-name = "highlight"
