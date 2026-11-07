@@ -17,6 +17,87 @@ and inference. Pose extraction also supports Apple MPS: OpenCV decodes on the CP
 uploads sampled RGB frames to the Apple GPU. Both paths run ByteTrack on the CPU;
 neither silently falls back to CPU model inference.
 
+## Pipeline overview
+
+The current workflow is **video → cached player poses → court-scoped candidates →
+context expansion → ranking → review clips**. Strong movement provides a starting
+point when serve/landing observations are unavailable. Supplied sport events offer
+a separate path to whole rallies or scoring plays.
+
+```mermaid
+flowchart TD
+    V[Source video] --> P[Sample frames: YOLO11-pose + ByteTrack]
+    P --> A[Save pose archive]
+    A --> F[Filter players to the selected court]
+    C[Reviewed court polygon / optional net] --> F
+    F --> M[Find strong motion peaks]
+    M --> X[Expand backward / forward toward local lulls]
+    F --> K[Optional sparse candidate keyframes]
+    K --> S[SAM3 or local YOLO: save object evidence]
+    E[Serve / terminal / score observations] --> U[Build event-defined rallies or scoring plays]
+    X --> R[Rank candidates and apply count / duration budgets]
+    U --> R
+    S --> R
+    R --> O[Clips + optional reel + JSON / HTML review]
+```
+
+| Stage | What happens | Tool / saved result |
+| --- | --- | --- |
+| 1. Choose the court | Inspect OpenCV line candidates, then supply the target court polygon; optionally mark net-post ground positions. Court selection requires review. | `highlight-court`, `court.json` |
+| 2. Extract poses once | Sample the video, detect player keypoints on CUDA/MPS, and associate players with CPU ByteTrack. The fast badminton path defaults to at most 10 FPS at 1280 px width. | `highlight-pose` or `highlight-detect`; `<game>_poses.npz` |
+| 3. Restrict attention | Keep players whose feet are inside the supplied polygon before motion/pattern analysis. This filters candidates without cropping the initial whole-frame YOLO pass. | Cached poses + court configuration |
+| 4. Cache optional object evidence | Inspect a bounded set of coarse pose-candidate crops/keyframes with SAM3 or a local YOLO object checkpoint. Save detections for reuse rather than analyzing every video frame with SAM3. | `highlight-detect`; `<game>_highlights.json` |
+| 5. Propose final intervals | Find strong body/arm-motion peaks and expand their context, or construct rallies/scoring plays from supplied events. See the mode table below. | `highlight-plays` |
+| 6. Rank and select | Use motion strength, duration, temporal action matches, and available SAM support. Merge bounded overlapping motion contexts, then select within count/time budgets. Event mode selects or skips whole units. | Selected intervals with scores and boundary/cut reasons |
+| 7. Export and review | Encode the selected contexts, optionally concatenate a reel, and inspect the clips and evidence. Candidate quality and boundary completeness still need human evaluation. | `highlight-plays`; MP4 clips/reel, `<game>_plays.json`, `review.html` |
+
+The pose and object-evidence caches are reusable. **`highlight-plays` runs no new
+YOLO/SAM inference**: it consumes poses and optional SAM evidence. Generate object
+evidence with `highlight-detect`, or add bounded action-level refinement with
+`highlight-patterns --refine-sam`, before reusing it in selection. Sparse evidence
+may cover only some of the newly selected motion peaks.
+
+| Selection mode | Starting signal and expansion | Meaning of the output |
+| --- | --- | --- |
+| **Motion context**: `highlight-plays --motion-seeds` | Strong sustained body/arm-motion peaks; search up to 12 seconds before and 8 after each peak by default. Local lulls, visibility gaps, and limits determine suggested cuts. | Estimated highlight contexts, which may contain incomplete rallies. Quiet skillful play may be missed. |
+| **Sport events**: `highlight-plays --events events.json` | Badminton service → terminal event; basketball made basket or football goal with lead-up context. Event input is filtered by `court_id`. | Event-defined plays; verification comes from the supplied observations, independently of ranking. Automatic badminton serve/landing and football goal detectors remain to be integrated. |
+| **Action inspection**: `highlight-patterns` | Ordered preparation/movement/recovery patterns, including compact/net actions without an overhead requirement. | Individual action candidates and supporting evidence for inspection or within-play ranking. |
+
+### From a fresh badminton video
+
+After [setup](#setup), the following sequence prepares the caches and extracts
+motion-context highlights on a Mac. Use `--device cuda:0` for the inference step on
+an NVIDIA GPU.
+
+```sh
+# Inspect the court, then create court.json for your recording using the example below.
+uv run highlight-court path/to/game.mp4 --out-dir outputs/court-preview
+
+# Extract poses and bounded SAM3 evidence; defer media export until final selection.
+uv run highlight-detect path/to/game.mp4 --sport badminton --device mps \
+  --court court.json --out-dir outputs/game --no-clips --no-overlay
+
+# Reuse those caches, expand strong motion peaks, and export the selected contexts.
+uv run highlight-plays path/to/game.mp4 --sport badminton --motion-seeds \
+  --poses outputs/game/game_poses.npz --court court.json \
+  --sam-evidence outputs/game/game_highlights.json \
+  --max-highlights 5 --highlight-budget 120 --out-dir outputs/motion/game --reel
+```
+
+For pose-only preparation, use `--detail-backend none` in the inference step;
+SAM evidence is optional in selection. Rerun the final command to adjust context
+limits, court filtering, or selection budgets while reusing the saved model outputs.
+See [court calibration](#court-lines-and-player-filtering),
+[motion-seed settings](#motion-seeded-context-highlights), and
+[event inputs](#rallies-and-scoring-plays) for the configuration details.
+
+Measure initial inference separately from cached selection/export. For example,
+the recorded 30.24-second motion run reused earlier YOLO/SAM results and includes
+clip/reel encoding. The [benchmark workflow](#benchmark-the-sparse-pipeline) tracks
+Mac CPU/GPU, memory, swap, and thermal pressure; whole-Mac counters include other
+apps. `scripts/benchmark_patterns.py --motion-seeds --monitor-mac` measures the
+cached motion-context path.
+
 ## Requirements
 
 - An NVIDIA GPU with a driver that supports CUDA 12.8. Developed on an RTX 4060 Ti (8 GB)
@@ -466,7 +547,11 @@ include per-stage timings, resource measurements, checkpoint provenance, and
 verification. The combined run took 4:30:35 for 33:47 of footage; SAM analysis
 accounted for 91% of the runtime. Power and charging conditions varied during the run.
 
-## How it works
+## Basketball and football detector details
+
+This describes the original `highlight-detect` basketball/football branch. See the
+[pipeline overview](#pipeline-overview) for the motion-context and event-based
+selection paths.
 
 1. **Pose, whole video.** YOLO11s-pose with ByteTrack runs on every 3rd frame at full
    1920 px width (smaller inputs miss distant players). A per-sport cue, measured in
@@ -489,8 +574,9 @@ accounted for 91% of the runtime. Power and charging conditions varied during th
 - Badminton candidates need accuracy validation; multiple courts require explicit
   calibration to restrict attention to your court.
 - Football has no SAM 3 stage yet, so every candidate window becomes a clip.
-- Clips are stream-copied, so one can start up to a keyframe interval (about 1 s on
-  iPhone video) before its window.
+- `highlight-detect` candidate clips are stream-copied, so one can start up to a
+  keyframe interval (about 1 s on iPhone video) before its window. `highlight-plays`
+  and `highlight-patterns` transcode their review clips to H.264.
 - The thresholds were tuned on three short clips.
 
 ## Earlier code
