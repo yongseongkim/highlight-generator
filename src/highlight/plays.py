@@ -1,7 +1,7 @@
 """Select full rallies or scoring plays from sport-event observations.
 
-Boundary observations come from a detector or annotation file. Pose-only activity
-estimates are an explicit diagnostic mode and never count as observed landings.
+Boundary observations come from a detector or annotation file. Motion seeds offer
+bounded context proposals without requiring complete event/rally detection.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import time
 from highlight.activity import activity_events, court_activity
 from highlight.court import Court, load_net, load_polygon
 from highlight.game_units import SportEvent, badminton_units, rank_units, scoring_units
+from highlight.motion import expand_seeds, find_seeds, motion_samples
 from highlight.pattern_signals import highlight_candidates, mine_actions, sam_support
 from highlight.patterns import _cut_review_clip, _reel, load_evidence
 from highlight.pose import file_identity, load_poses
@@ -45,11 +46,16 @@ def write_review(path: Path, report: dict) -> None:
     esc = html.escape
     for i, unit in enumerate(report["selected_units"], 1):
         media = f'<video controls preload="none" src="{esc(unit["clip"], quote=True)}"></video>' if unit.get("clip") else ""
+        seeds = [event for event in unit["events"] if event["kind"] == "motion_peak"]
+        seed_note = ('<p>Motion peaks: ' + ', '.join(f'{event["time_s"]:.2f}s (energy {event["data"]["energy"]:.2f})' for event in seeds)
+                     + '. Movement intensity is a ranking signal, not a confidence probability.</p>') if seeds else ""
         cards.append(f'<article><h2>{i}. {esc(unit["unit_type"])} · {unit["play_start_s"]:.2f}–{unit["play_end_s"]:.2f}s</h2>'
                      f'{media}<p>Boundary status: {esc(unit["boundary_status"])}. '
                      f'Start: {esc(unit["start_reason"])}. End: {esc(unit["end_reason"])}.</p>'
-                     f'<p>Interest score: {unit["ranking_score"]:.3f}; action pattern matches: {unit["features"]["action_match_count"]}.</p></article>')
-    note = ("Pose activity alone cannot establish service or ground contact. These are activity-boundary proposals."
+                     f'<p>Interest score: {unit["ranking_score"]:.3f}; action pattern matches: {unit["features"]["action_match_count"]}.</p>{seed_note}</article>')
+    note = ("Strong motion peaks anchor these bounded context proposals. Local lulls and search limits are editorial cuts, not verified rally boundaries or scores."
+            if report["mode"] == "motion_seed_expansion" else
+            "Pose activity alone cannot establish service or ground contact. These are activity-boundary proposals."
             if report["mode"] == "pose_activity_estimates" else
             "Units follow the supplied sport events. Verification flags come from the event source, independently of highlight ranking.")
     path.write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -65,6 +71,7 @@ def main(argv: list[str] | None = None) -> None:
     boundary = parser.add_mutually_exclusive_group(required=True)
     boundary.add_argument("--events", type=Path, help="timestamped serve/end or goal observations")
     boundary.add_argument("--estimate-from-poses", action="store_true", help="diagnostic activity proposals; not detected serves/landings")
+    boundary.add_argument("--motion-seeds", action="store_true", help="expand dramatic motion peaks into bounded context candidates")
     parser.add_argument("--poses", type=Path, help="optional cached poses for activity or within-unit interest ranking")
     parser.add_argument("--sam-evidence", type=Path, help="reuse saved badminton SAM evidence for within-unit ranking")
     parser.add_argument("--court", type=Path, help="required whenever poses contribute")
@@ -74,6 +81,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--highlight-budget", type=float, default=120)
     parser.add_argument("--verified-only", action="store_true", help="only select units with both boundary observations verified")
     parser.add_argument("--idle-seconds", type=float, default=2.5)
+    parser.add_argument("--motion-before", type=float, default=12, help="maximum motion context before a peak, seconds")
+    parser.add_argument("--motion-after", type=float, default=8, help="maximum motion context after a peak, seconds")
+    parser.add_argument("--seed-percentile", type=float, default=95, help="video-relative motion gate in [50, 100)")
     parser.add_argument("--no-clips", action="store_true")
     parser.add_argument("--reel", action="store_true")
     args = parser.parse_args(argv)
@@ -85,6 +95,12 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--reel requires clip export")
     if args.estimate_from_poses and (args.sport != "badminton" or args.poses is None):
         parser.error("Activity estimates require badminton and --poses")
+    if args.motion_seeds and args.poses is None:
+        parser.error("--motion-seeds requires --poses")
+    if not all(math.isfinite(v) and v > 0 for v in (args.motion_before, args.motion_after)):
+        parser.error("Motion context limits must be finite and positive")
+    if not math.isfinite(args.seed_percentile) or not 50 <= args.seed_percentile < 100:
+        parser.error("--seed-percentile must be in [50, 100)")
     if args.poses is not None and args.court is None:
         parser.error("--poses requires --court so other courts cannot contribute")
     if args.sam_evidence and (args.sport != "badminton" or args.poses is None):
@@ -114,8 +130,16 @@ def main(argv: list[str] | None = None) -> None:
         finally:
             capture.release()
     samples = []
+    diagnostics = {}
     t0 = time.perf_counter()
-    if args.estimate_from_poses:
+    if args.motion_seeds:
+        samples, diagnostics = motion_samples(poses, court)
+        events, threshold = find_seeds(samples, args.court_id, args.seed_percentile)
+        units = expand_seeds(samples, events, duration, args.sport, args.court_id,
+                             before_s=args.motion_before, after_s=args.motion_after)
+        diagnostics.update(seed_threshold=threshold, seed_count=len(events), context_candidates=len(units))
+        mode = "motion_seed_expansion"
+    elif args.estimate_from_poses:
         samples = court_activity(poses, court)
         events = activity_events(samples, args.court_id, idle_s=args.idle_seconds)
         mode = "pose_activity_estimates"
@@ -125,7 +149,9 @@ def main(argv: list[str] | None = None) -> None:
         except (OSError, ValueError, TypeError, KeyError) as exc:
             parser.error(str(exc))
         mode = "sport_events"
-    if args.sport == "badminton":
+    if args.motion_seeds:
+        pass  # Motion contexts remain separate from event-defined rallies/scores.
+    elif args.sport == "badminton":
         units = badminton_units(events, duration, args.court_id, allow_activity_estimates=args.estimate_from_poses)
     else:
         units = scoring_units(events, args.sport, duration, args.court_id)
@@ -172,6 +198,7 @@ def main(argv: list[str] | None = None) -> None:
               "sam_evidence": str(args.sam_evidence.resolve()) if args.sam_evidence else None,
               "sam_evidence_frames_reused": len(details),
               "timing": timings, "events": [asdict(e) for e in events], "activity_samples": samples,
+              "diagnostics": diagnostics,
               "units": [{**asdict(u), "boundary_status": u.boundary_status} for u in units],
               "selected_units": windows, "reel": reel.name if args.reel and clips else None,
               "settings": {"max_highlights": args.max_highlights, "highlight_budget_s": args.highlight_budget,
@@ -179,6 +206,10 @@ def main(argv: list[str] | None = None) -> None:
               "limitations": ["This command consumes boundary observations; it does not train or run a serve, landing, or football-goal detector.",
                               "Pose-only pauses do not establish the shuttle landing or a complete rally.",
                               "Event verification and interest ranking are independent."]}
+    report["settings"].update(motion_before_s=args.motion_before, motion_after_s=args.motion_after,
+                              seed_percentile=args.seed_percentile)
+    if args.motion_seeds:
+        report["limitations"].append("Motion seeds may miss quiet skillful play and include ordinary movement; their selection accuracy is not yet validated.")
     path = args.out_dir / f"{args.video.stem}_plays.json"
     path.write_text(json.dumps(report, indent=2, allow_nan=False))
     write_review(args.out_dir / "review.html", report)

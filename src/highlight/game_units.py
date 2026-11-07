@@ -186,6 +186,8 @@ def rank_units(units: list[GameUnit], actions: list, max_highlights: int = 5, bu
                               + 0.25 * min(unit.features["peak_action_score"], 1))
         if unit.unit_type == "scoring_play":
             unit.ranking_score += 1
+        elif unit.unit_type == "motion_candidate":
+            unit.ranking_score = 0.55 * unit.features["motion_seed_score"] + 0.45 * unit.ranking_score
     selected, used = [], 0.0
     for unit in sorted(units, key=lambda u: (-u.ranking_score, u.play_start_s)):
         if len(selected) >= max_highlights:

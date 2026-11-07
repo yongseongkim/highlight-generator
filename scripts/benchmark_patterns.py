@@ -20,19 +20,26 @@ def main():
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--device", default="mps")
     parser.add_argument("--refine-sam", action="store_true")
+    parser.add_argument("--motion-seeds", action="store_true", help="benchmark peak expansion via highlight-plays instead of action clips")
     parser.add_argument("--reel", action="store_true")
     parser.add_argument("--monitor-mac", action="store_true")
     parser.add_argument("--max-highlights", type=int, default=5)
     parser.add_argument("--highlight-budget", type=float, default=40)
     parser.add_argument("--max-sam-calls", type=int, default=15)
     args = parser.parse_args()
+    if args.motion_seeds and args.refine_sam:
+        parser.error("Motion benchmarks reuse cached SAM evidence; omit --refine-sam")
+    if args.motion_seeds and args.court_root is None:
+        parser.error("--motion-seeds requires --court-root")
     args.out_dir.mkdir(parents=True, exist_ok=True)
     destination = args.out_dir / "benchmark.json"
     if destination.exists():
         parser.error("Use a fresh output directory")
     report = {"created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "expected_runs": len(args.videos),
-              "title": "Cached YOLO pose + temporal patterns + SAM3", "pipeline": "patterns", "status": "running",
-              "scope": "Reuses high-resolution pose archives and saved SAM evidence. Optional fresh SAM refinement; includes clip, JPEG, and optional H.264 reel export. No YOLO inference.",
+              "title": "Cached poses + motion seed context" if args.motion_seeds else "Cached YOLO pose + temporal patterns + SAM3",
+              "pipeline": "plays" if args.motion_seeds else "patterns", "status": "running",
+              "scope": ("Reuses pose archives and saved SAM evidence for motion-seed context proposals. Includes clips and optional H.264 reels. No new model inference."
+                        if args.motion_seeds else "Reuses high-resolution pose archives and saved SAM evidence. Optional fresh SAM refinement; includes clip, JPEG, and optional H.264 reel export. No YOLO inference."),
               "settings": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items() if key != "videos"},
               "runs": []}
 
@@ -59,6 +66,11 @@ def main():
                    "--sam-evidence", str(evidence),
                    "--out-dir", str(output), "--device", args.device, "--max-highlights", str(args.max_highlights),
                    "--highlight-budget", str(args.highlight_budget), "--max-sam-calls", str(args.max_sam_calls)]
+        if args.motion_seeds:
+            command = [sys.executable, "-u", "-m", "highlight.plays", str(video), "--sport", "badminton", "--motion-seeds",
+                       "--poses", str(args.pose_root / name / f"{name}_poses.npz"), "--sam-evidence", str(evidence),
+                       "--out-dir", str(output), "--max-highlights", str(args.max_highlights),
+                       "--highlight-budget", str(args.highlight_budget)]
         if args.refine_sam:
             command.append("--refine-sam")
         if args.reel:
@@ -83,9 +95,15 @@ def main():
         run = {"video": str(video), "exit_code": child.returncode, "wall_s": time.perf_counter() - started,
                "peak_process_rss_gib": peak_rss / 2**30, "command": command, "log": str(log_path)}
         if child.returncode == 0:
-            result = json.loads((output / f"{name}_patterns.json").read_text())
-            run.update(duration_s=result["duration_s"], pipeline_timing=result["timing"], pattern_counts=result["pattern_counts"],
-                       selected_windows=len(result["windows"]), selected_s=result["selected_s"], reel=result["reel"])
+            if args.motion_seeds:
+                result = json.loads((output / f"{name}_plays.json").read_text())
+                run.update(diagnostics=result["diagnostics"], selected_windows=len(result["selected_units"]),
+                           selected_s=sum(u["end_s"] - u["start_s"] for u in result["selected_units"]),
+                           verified_boundaries=sum(u["boundary_status"] == "verified" for u in result["selected_units"]))
+            else:
+                result = json.loads((output / f"{name}_patterns.json").read_text())
+                run.update(pattern_counts=result["pattern_counts"], selected_windows=len(result["windows"]), selected_s=result["selected_s"])
+            run.update(duration_s=result["duration_s"], pipeline_timing=result["timing"], reel=result["reel"])
         else:
             run["error_tail"] = log_path.read_text(errors="replace").splitlines()[-20:]
             failed = True

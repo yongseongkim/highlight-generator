@@ -2,10 +2,11 @@
 
 Finds the highlights in your own sports videos and cuts them into clips.
 
-Highlight candidates should follow a sport's meaningful unit: a badminton rally,
-or the build-up to a basketball/football score. Boundary/outcome events define
-those intervals first. Pose and optional SAM3 evidence then help rank what happens
-inside an interval. Individual arm movements are auxiliary signals, not rally boundaries.
+Highlight candidates can start from sport events or strong movement. Event mode
+preserves a badminton rally or the build-up to a basketball/football score.
+Motion-seed mode finds strong pose-motion peaks and expands their context using
+local lulls and bounded searches. Pose patterns and optional saved SAM3 evidence
+help rank candidates. Individual arm movements never verify rally boundaries.
 
 The repository includes event-driven unit selection and experimental pose/SAM
 detectors. A continuous badminton serve/landing detector and a football goal detector
@@ -36,6 +37,46 @@ uvx --from huggingface_hub hf download facebook/sam3 sam3.pt --local-dir models
 ```
 
 The YOLO11-pose weights are downloaded into `models/` on the first run.
+
+### Motion-seeded context highlights
+
+This mode works without a serve/landing detector: find a strong movement first,
+then search backward and forward for context rather than requiring the whole
+court to stop. It reuses existing pose/SAM archives and performs no new inference.
+
+```sh
+uv run highlight-plays path/to/game.mp4 --sport badminton --motion-seeds \
+  --poses outputs/game_poses.npz --court court.json \
+  --sam-evidence outputs/game_highlights.json \
+  --motion-before 12 --motion-after 8 --seed-percentile 95 \
+  --max-highlights 5 --highlight-budget 120 --out-dir outputs/motion/game --reel
+```
+
+`--sam-evidence` is optional. Body speed, body velocity change, and arm speed
+relative to the shoulders are measured in torso lengths within continuous tracks.
+Strong sustained peaks must pass an absolute gate and the video's motion
+percentile; they need neither an overhead pose nor a completed stroke pattern.
+Hidden wrists, implausible track jumps, and players outside the supplied polygon
+cannot supply motion peaks. Image-plane vertical motion may support a candidate,
+but is not a verified jump or shot-type classification.
+
+Each peak expands toward sustained **local motion lulls**, with default limits of
+12 seconds before and 8 seconds after. Brief occlusions do not count as stillness;
+long visibility gaps and search limits remain explicit cut reasons. Overlapping
+contexts merge only when their union fits the total context limit; weaker overlaps
+are suppressed. Candidates remain disjoint and estimated. They may contain an
+incomplete rally; use event mode when observed full-rally boundaries are required.
+Quiet skillful shots may be missed, and ordinary movement may still be selected.
+Camera movement is not compensated. These are review candidates, not validated
+highlight preferences or point outcomes.
+
+The [Mac motion-seed benchmark](benchmarks/macbook-motion-seeds-2026-11-07.json)
+used all three saved videos and extracted 15 clips plus three H.264 reels in
+**30.24 seconds**, including media export. Peak parent-process RSS was **0.32 GiB**;
+this excludes FFmpeg child memory and the earlier YOLO/SAM inference. All new
+YOLO/SAM call counts were zero. The 197 motion seeds yielded 104 bounded context
+candidates; five per video were selected, totaling 239.88 seconds. Candidate
+precision, complete-rally recall, and point outcomes have not been validated.
 
 ### Rallies and scoring plays
 
