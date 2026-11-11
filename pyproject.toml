@@ -26,6 +26,8 @@ highlight-detect = "highlight.detect:main"
 highlight-court = "highlight.court:main"
 highlight-patterns = "highlight.patterns:main"
 highlight-plays = "highlight.plays:main"
+highlight-fusion = "highlight.fusion:main"
+highlight-fusion-review = "highlight.fusion_review:main"
 
 [tool.uv.build-backend]
 module-name = "highlight"

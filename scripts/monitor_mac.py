@@ -95,7 +95,7 @@ def main() -> None:
             for process in psutil.process_iter(["pid", "cmdline"]):
                 try:
                     command = process.info["cmdline"] or []
-                    module = next((name for name in ("highlight.extract_pose", "highlight.detect", "highlight.patterns", "highlight.plays") if name in command), None)
+                    module = next((name for name in ("highlight.extract_pose", "highlight.detect", "highlight.patterns", "highlight.plays", "highlight.fusion") if name in command), None)
                     if module is None:
                         continue
                     pos = command.index(module)

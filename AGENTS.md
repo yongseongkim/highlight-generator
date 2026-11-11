@@ -9,7 +9,7 @@ over generated logs and media.
 - Install: `uv sync --frozen`
 - Behavior tests (no model inference): `uv run python -m unittest discover -s tests -v`
 - Whitespace: `git diff --check`
-- CLI details: `uv run highlight-plays --help` (also pose, detect, court, patterns).
+- CLI details: `uv run highlight-plays --help` (also pose, detect, court, patterns, fusion).
 - Docs-only edits: check links, fences, and command flags; skip model runs.
 
 ## Code map
@@ -27,10 +27,12 @@ Legacy `detector/` and `videos/` have separate dependencies.
 | `badminton.py`, `badminton_events.py` | Sparse pose candidates and budgeted detail keyframes |
 | `detect.py`, `signals.py`, `candidates.py`, `shots.py` | Sport dispatch, original cues, inferred basket outcomes |
 | `sam.py`, `objects.py`, `viz.py` | Detail inference and visualization |
+| `fusion.py`, `fusion_signals.py`, `fusion_review.py` | Multi-rate overlays, evidence packets, validated agent reviews |
 
 `scripts/benchmark_pose.py` measures fresh inference; `benchmark_patterns.py`
 measures cached extraction (`--motion-seeds` for contexts). `monitor_mac.py` and
 `plot_mac_benchmark.py` record/export resources. Behavior tests are in `tests/`.
+`benchmark_fusion.py` measures dense CV, fresh object/SAM calls, and overlay export.
 
 ## Invariants
 
@@ -48,6 +50,9 @@ measures cached extraction (`--motion-seeds` for contexts). `monitor_mac.py` and
 - Pose cache keys include source/checkpoint identity, stride, width, confidence.
   Associate saved SAM by source frame/geometry/crop, not cross-cache IDs.
 - Preserve CUDA/NVDEC and MPS/OpenCV paths; never silently use CPU inference.
+- Fusion keeps native object labels, source frame/time, sampling gaps and bounded
+  display ages. Flying objects need more than ground-ROI membership. LLM reviews
+  cite existing evidence IDs; interest judgments never add boundary verification.
 - Label fresh inference, cached analysis, and export costs separately. Parent RSS
   excludes FFmpeg and does not measure total GPU memory; Mac counters include other apps; thermal
   pressure is not temperature. Speed comparisons do not establish accuracy.

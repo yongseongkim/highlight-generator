@@ -24,7 +24,7 @@ def main() -> None:
     fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True, height_ratios=[2, 2, 1])
     title = report.get("title", "YOLO11s-pose")
     backend = "MPS FP16"
-    if report.get("pipeline") in {"patterns", "plays"} and not any(run.get("pipeline_timing", {}).get("sam_calls", 0) for run in report["runs"]):
+    if report.get("pipeline") in {"patterns", "plays", "fusion"} and not any(run.get("pipeline_timing", {}).get("sam_calls", 0) or run.get("pipeline_timing", {}).get("object_calls", 0) for run in report["runs"]):
         backend = "CPU · cached model outputs"
     fig.suptitle(f"MacBook Pro · M4 Pro (20 GPU cores) · 48 GB\n{title} · {backend}", fontsize=15, y=0.98)
 
