@@ -1,0 +1,117 @@
+{
+  "title": "Rally-boundary evidence audit",
+  "pipeline": "plays",
+  "expected_runs": 3,
+  "runs": [
+    {
+      "video": "lp2hhnV7QXY",
+      "exit_code": 0,
+      "wall_s": 3.211600000038743,
+      "peak_process_rss_gib": 0.3013763427734375,
+      "duration_s": 712.484,
+      "pipeline_timing": {
+        "yolo_calls": 0,
+        "sam_calls": 0,
+        "unit_detection_s": 0.5423601660877466,
+        "interest_ranking_s": 1.8951800838112831,
+        "export_s": 1.7167069017887115e-05,
+        "total_before_json_s": 2.4672647500410676
+      },
+      "activity_proposals": 1,
+      "proposal_durations_s": [
+        712.484
+      ],
+      "verified_rallies": 0,
+      "selected_units": 0
+    },
+    {
+      "video": "iw0UE2AipIc",
+      "exit_code": 0,
+      "wall_s": 3.240301457932219,
+      "peak_process_rss_gib": 0.29144287109375,
+      "duration_s": 719.334,
+      "pipeline_timing": {
+        "yolo_calls": 0,
+        "sam_calls": 0,
+        "unit_detection_s": 0.638539084000513,
+        "interest_ranking_s": 1.7606515830848366,
+        "export_s": 3.0374852940440178e-05,
+        "total_before_json_s": 2.4357406250201166
+      },
+      "activity_proposals": 2,
+      "proposal_durations_s": [
+        440.64,
+        276.14099999999996
+      ],
+      "verified_rallies": 0,
+      "selected_units": 0
+    },
+    {
+      "video": "0dj21Djz180",
+      "exit_code": 0,
+      "wall_s": 2.5972284160088748,
+      "peak_process_rss_gib": 0.2801666259765625,
+      "duration_s": 594.7710000000001,
+      "pipeline_timing": {
+        "yolo_calls": 0,
+        "sam_calls": 0,
+        "unit_detection_s": 0.44715475011616945,
+        "interest_ranking_s": 1.3673560000024736,
+        "export_s": 1.850002445280552e-05,
+        "total_before_json_s": 1.840048249810934
+      },
+      "activity_proposals": 1,
+      "proposal_durations_s": [
+        593.066
+      ],
+      "verified_rallies": 0,
+      "selected_units": 0
+    }
+  ],
+  "status": "complete",
+  "monitor_exit_code": 0,
+  "finding": "The current pose caches lack serve/landing observations. Pose activity merged long parts of these videos and did not establish full-rally boundaries. No ground contacts or verified rallies were fabricated.",
+  "date": "2026-11-04",
+  "scope": "Pose-only boundary diagnostic on cached court-filtered YOLO poses. No fresh YOLO/SAM inference, no confirmed rally extraction, and no exported real-video clips.",
+  "totals": {
+    "wall_s": 9.049129873979837,
+    "verified_rallies": 0,
+    "selected_units": 0,
+    "yolo_calls": 0,
+    "sam_calls": 0
+  },
+  "mac": {
+    "hardware": "MacBook Pro M4 Pro, 14 CPU / 20 GPU cores, 48 GB unified memory",
+    "started_at": "2026-11-04T22:21:29+0900",
+    "monitor_interval_s": 2,
+    "active_samples": 5,
+    "whole_system_cpu_mean_percent": 21.04,
+    "whole_system_gpu_mean_percent": 47.2,
+    "peak_process_rss_gib": 0.3013763427734375,
+    "thermal_states": [
+      "nominal"
+    ],
+    "swap_out_bytes_during_monitoring": 3309568,
+    "coverage": "From monitor startup through benchmark completion plus 15 seconds of idle time.",
+    "notes": [
+      "CPU percent is normalized across all logical CPUs; process CPU uses 100% per logical CPU.",
+      "GPU and memory counters are whole-system values, including other apps; GPU memory is shared RAM.",
+      "Thermal pressure is NSProcessInfo.thermalState, not a temperature in Celsius.",
+      "GPU utilization and memory are sampled IOAccelerator driver counters."
+    ]
+  },
+  "validation": {
+    "unit_tests_passed": 55,
+    "automatic_boundary_accuracy_validated": false,
+    "synthetic_event_media_export": {
+      "clips": 2,
+      "reel_decodable": true,
+      "duration_error_within_source_frame": true
+    }
+  },
+  "artifacts": {
+    "root": "outputs/rally-boundaries-2026-11-04",
+    "mac_chart": "outputs/rally-boundaries-2026-11-04/mac-performance.png",
+    "mac_csv": "outputs/rally-boundaries-2026-11-04/mac-performance.csv"
+  }
+}

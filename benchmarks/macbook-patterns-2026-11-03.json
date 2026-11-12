@@ -1,0 +1,161 @@
+{
+  "date": "2026-11-03",
+  "scope": "Reuses high-resolution pose archives and saved SAM evidence. Optional fresh SAM refinement; includes clip, JPEG, and optional H.264 reel export. No YOLO inference.",
+  "runs": [
+    {
+      "video": "lp2hhnV7QXY",
+      "wall_s": 7.2986489159520715,
+      "mining_s": 1.0346976250875741,
+      "saved_data_analysis_s": 1.0916377499233931,
+      "sam_calls": 0,
+      "selected_clips": 5,
+      "selected_s": 29.125000000000057,
+      "pattern_counts": {
+        "overhead_swing": 95,
+        "low_reach_recovery": 34,
+        "repeated_action_burst": 9
+      },
+      "peak_process_rss_gib": 0.4526214599609375,
+      "court_excluded_rows": 18687,
+      "sam_supported_selected": 3,
+      "reel": "outputs/pattern-analysis/selected-2026-11-03/lp2hhnV7QXY/lp2hhnV7QXY_pattern_highlights.mp4",
+      "reel_media": {
+        "frames": 875,
+        "fps": 30.0,
+        "duration_s": 29.166666666666668,
+        "codec": "h264"
+      }
+    },
+    {
+      "video": "iw0UE2AipIc",
+      "wall_s": 4.9265385419130325,
+      "mining_s": 1.1050439169630408,
+      "saved_data_analysis_s": 1.1624368343036622,
+      "sam_calls": 0,
+      "selected_clips": 5,
+      "selected_s": 26.908999999999942,
+      "pattern_counts": {
+        "low_reach_recovery": 10,
+        "overhead_swing": 67,
+        "repeated_action_burst": 2
+      },
+      "peak_process_rss_gib": 0.51531982421875,
+      "court_excluded_rows": 36688,
+      "sam_supported_selected": 4,
+      "reel": "outputs/pattern-analysis/selected-2026-11-03/iw0UE2AipIc/iw0UE2AipIc_pattern_highlights.mp4",
+      "reel_media": {
+        "frames": 808,
+        "fps": 30.0,
+        "duration_s": 26.933333333333334,
+        "codec": "h264"
+      }
+    },
+    {
+      "video": "0dj21Djz180",
+      "wall_s": 4.428431167034432,
+      "mining_s": 0.8205578338820487,
+      "saved_data_analysis_s": 0.8745942090172321,
+      "sam_calls": 0,
+      "selected_clips": 5,
+      "selected_s": 25.71900000000002,
+      "pattern_counts": {
+        "overhead_swing": 81,
+        "low_reach_recovery": 31,
+        "repeated_action_burst": 2
+      },
+      "peak_process_rss_gib": 0.50335693359375,
+      "court_excluded_rows": 17235,
+      "sam_supported_selected": 3,
+      "reel": "outputs/pattern-analysis/selected-2026-11-03/0dj21Djz180/0dj21Djz180_pattern_highlights.mp4",
+      "reel_media": {
+        "frames": 773,
+        "fps": 29.989543183620686,
+        "duration_s": 25.775651041666666,
+        "codec": "h264"
+      }
+    }
+  ],
+  "totals": {
+    "wall_s": 16.653618624899536,
+    "pattern_counts": {
+      "overhead_swing": 243,
+      "low_reach_recovery": 75,
+      "repeated_action_burst": 13
+    },
+    "selected_pattern_counts": {
+      "overhead_swing": 9,
+      "repeated_action_burst": 6
+    },
+    "selected_clips": 15,
+    "selected_s": 81.75300000000001,
+    "sam_calls": 0,
+    "yolo_calls": 0
+  },
+  "selected_sam_object_rejections": {
+    "shuttle_far_from_hand": 23,
+    "low_confidence_or_size": 492,
+    "shuttle_size_or_confidence": 114,
+    "racket_not_near_hand_or_oversized": 45,
+    "stationary_shuttle": 96
+  },
+  "mac": {
+    "whole_system_cpu_mean_percent": 36.86666666666667,
+    "whole_system_gpu_mean_percent": 10.333333333333334,
+    "thermal_states": [
+      "nominal"
+    ],
+    "peak_process_rss_gib": 0.51531982421875,
+    "note": "Whole-Mac counters include other apps; GPU memory is shared RAM. RSS is for the parent process. Thermal pressure is not temperature."
+  },
+  "verification": {
+    "source_checksums_match_previous_runs": true,
+    "all_clips_and_reels_decodable": true,
+    "reels_h264_30fps": true,
+    "selection_and_inference_budgets": true,
+    "ordered_pattern_phases": true,
+    "unit_tests_passed": 29,
+    "selection_accuracy_validated": false,
+    "review_reel_duration_matches_selection_within_half_second": true
+  },
+  "interpretation": [
+    "Counts are matches to hand-authored temporal rules, not ground-truth action counts or learned highlight preferences.",
+    "Foreground regions were proposed from video inspection; they are not surveyed court calibration.",
+    "SAM adds limited supporting evidence near hands; it does not confirm hits or point outcomes."
+  ],
+  "artifacts": {
+    "review": "outputs/pattern-analysis/selected-2026-11-03/review.html",
+    "phase_overview": "outputs/pattern-analysis/selected-2026-11-03/pattern-phases-overview.jpg",
+    "labels": "outputs/pattern-analysis/selected-2026-11-03/labels.csv",
+    "mac_chart": "outputs/pattern-analysis/selected-2026-11-03/mac-performance.png"
+  },
+  "source_sha256": {
+    "src/highlight/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/highlight/badminton.py": "070bbfa8481276e6b2c13f1bfc18e91d3a2775bdfc7e5856b71dd102d01cd82a",
+    "src/highlight/badminton_events.py": "f508dbef5d70c5419fcd739560395e67d9ff71956d6bdf83f1a30c7d474d0e44",
+    "src/highlight/candidates.py": "1ca8b86fff1e97de3e4381b21a2b658ceb63efcaecd00b52a853f3a17099b93f",
+    "src/highlight/court.py": "b42466c0b4fdc16e7b588f576a2c13792f90d40e1b3d3b04d515545b53b32231",
+    "src/highlight/detect.py": "c0579a6279acba66727963c3ddebc42681275d1c23d4557f1a096e498e417022",
+    "src/highlight/extract_pose.py": "5e3dc6d1d02d8c375ca0e8570cd2ba8e1d45f25421df17eeeb458041bd8b1434",
+    "src/highlight/objects.py": "5229735799ebbeb85d64d986b69266502b077704dd5e39f49e142e6be7a24584",
+    "src/highlight/pattern_signals.py": "f14a6c8fa7c0692ed048fd0fc9a9c49770f9f26b566013e926b7db606110eecd",
+    "src/highlight/patterns.py": "ccaca5bedd05660d0bfe791267f5619dda792d3b938d752e9001c7549e718f9a",
+    "src/highlight/pose.py": "a4a73f0371fc0130682d2756f1c3acd9f60c17682ade59276aafc75d5ceb1e26",
+    "src/highlight/sam.py": "b8973bffec1cfd381551a49c959ea1bda04fca769cafa858c9d8177524ee18f9",
+    "src/highlight/shots.py": "9d88545fe2b0e7e764b6fb14a5b685a20ccd549ad2de332e4df470d308586ce2",
+    "src/highlight/signals.py": "f38748237a8fb77b740c2c586c7d570371fdac96f712cb7ebc204a74fb5d480e",
+    "src/highlight/video.py": "1ad0482ac40b85515076c8944ff34964ac4ec26bf37f8431e0366dbc38af6d2a",
+    "src/highlight/viz.py": "d872d6f6b92a521273f41d322068e487b19dda65213bda2c472863e327df15e6"
+  },
+  "preceding_refinement_passes": [
+    {
+      "path": "outputs/pattern-analysis/run-2026-11-02/benchmark.json",
+      "wall_s": 73.50253229215741,
+      "sam_calls": 45
+    },
+    {
+      "path": "outputs/pattern-analysis/focused-2026-11-02/benchmark.json",
+      "wall_s": 51.355894373962656,
+      "sam_calls": 25
+    }
+  ]
+}

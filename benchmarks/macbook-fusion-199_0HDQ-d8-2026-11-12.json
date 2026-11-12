@@ -1,0 +1,260 @@
+{
+  "date": "2026-11-12",
+  "video_id": "199_0HDQ-d8",
+  "video": "/Users/yongseongkim/Documents/workspace.nosync/highlight-generator/outputs/youtube/inputs/199_0HDQ-d8.mp4",
+  "duration_s": 609.227636169396,
+  "hardware": "Apple M4 Pro / 48 GiB unified memory",
+  "initial": {
+    "wall_s": 173.96890050033107,
+    "peak_parent_rss_gib": 6.4599151611328125,
+    "pipeline_timing": {
+      "pose_calls": 0,
+      "cached_pose_frames": 6083,
+      "sam_calls": 15,
+      "sam_load_s": 8.257243416737765,
+      "sam_inference_s": 7.919893000740558,
+      "dense_pass_wall_s": 152.90581695875153,
+      "cv_compute_s": 20.452360426075757,
+      "overlay_draw_write_s": 86.0276382449083,
+      "object_calls": 1740,
+      "object_inference_s": 26.388824148103595,
+      "candidate_export_s": 2.7234371658414602,
+      "total_s": 172.9064171249047
+    },
+    "coverage": {
+      "sport": "badminton",
+      "object_model_status": "loaded",
+      "object_checkpoint_classes": [
+        "tennis racket"
+      ],
+      "missing_expected_classes": [
+        "shuttlecock",
+        "badminton racket"
+      ],
+      "unknown_expected_classes": [],
+      "cv_frames": 36497,
+      "cached_pose_frames": 6083,
+      "cached_sam_images": 60,
+      "fresh_sam_images": 15,
+      "object_samples": 1740,
+      "object_budget_exhausted": false
+    }
+  },
+  "cached_render": {
+    "wall_s": 124.52095137536526,
+    "peak_parent_rss_gib": 0.4434814453125,
+    "pipeline_timing": {
+      "pose_calls": 0,
+      "cached_pose_frames": 6083,
+      "sam_calls": 0,
+      "sam_load_s": 0.0,
+      "sam_inference_s": 0.0,
+      "dense_pass_wall_s": 121.20130720827729,
+      "cv_compute_s": 19.346845466643572,
+      "overlay_draw_write_s": 82.95931276120245,
+      "object_calls": 0,
+      "object_inference_s": 0,
+      "candidate_export_s": 2.386915958020836,
+      "total_s": 123.84650816675276
+    },
+    "coverage": {
+      "sport": "badminton",
+      "object_model_status": "reused",
+      "object_checkpoint_classes": [
+        "tennis racket"
+      ],
+      "missing_expected_classes": [
+        "shuttlecock",
+        "badminton racket"
+      ],
+      "unknown_expected_classes": [],
+      "cv_frames": 36497,
+      "cached_pose_frames": 6083,
+      "cached_sam_images": 75,
+      "fresh_sam_images": 0,
+      "cached_object_samples": 1740,
+      "stationary_sam_observations_rejected": 45,
+      "object_samples": 1740,
+      "object_budget_exhausted": false
+    }
+  },
+  "cost_scope": "Initial fusion reused earlier 6083 pose frames/60 SAM images; ran 1740 object and 15 new SAM calls. Earlier pose/SAM inference and the agent's reasoning time are excluded. Cached rendering recomputes CV and media with no new model calls.",
+  "alignment_max_error_s": {
+    "pose": 4.999248801595968e-07,
+    "objects": 0.0,
+    "sam": 4.978217020834563e-07
+  },
+  "cv_compute_per_frame_ms": 0.560384700826801,
+  "observations": {
+    "yolo_native_labels": {
+      "tennis racket": 942
+    },
+    "sam_native_labels_raw": {
+      "badminton racket": 263,
+      "shuttlecock": 217
+    },
+    "stationary_sam_flags": 81,
+    "stationary_sam_display_rejections": 45
+  },
+  "agent_demo": {
+    "reviewer": "codex: packet and three-frame visual review; demonstration, not blind accuracy evaluation",
+    "decisions": {
+      "C01": "highlight_candidate",
+      "C02": "highlight_candidate",
+      "C03": "highlight_candidate",
+      "C04": "needs_review",
+      "C05": "highlight_candidate",
+      "C06": "highlight_candidate"
+    },
+    "selected_count": 5,
+    "selected_s": 76.85866843607599,
+    "accuracy_evaluated": false,
+    "scope": "Root Codex inspected packet summaries and keyframe images. Demonstration, not blind evaluation; no external API was invoked.",
+    "all_boundaries_unverified_by_agent": true
+  },
+  "mac": {
+    "initial": {
+      "thermal_states": [
+        "nominal"
+      ],
+      "swap_out_bytes": 45580288,
+      "scope": [
+        "CPU percent is normalized across all logical CPUs; process CPU uses 100% per logical CPU.",
+        "GPU and memory counters are whole-system values, including other apps; GPU memory is shared RAM.",
+        "Thermal pressure is NSProcessInfo.thermalState, not a temperature in Celsius.",
+        "GPU utilization and memory are sampled IOAccelerator driver counters."
+      ]
+    },
+    "cached_render": {
+      "thermal_states": [
+        "nominal"
+      ],
+      "swap_out_bytes": 0,
+      "scope": [
+        "CPU percent is normalized across all logical CPUs; process CPU uses 100% per logical CPU.",
+        "GPU and memory counters are whole-system values, including other apps; GPU memory is shared RAM.",
+        "Thermal pressure is NSProcessInfo.thermalState, not a temperature in Celsius.",
+        "GPU utilization and memory are sampled IOAccelerator driver counters."
+      ]
+    }
+  },
+  "media": [
+    {
+      "path": "full_overlay.mp4",
+      "frames": 18277,
+      "fps": 30.0,
+      "duration_s": 609.2333333333333,
+      "codec": "h264",
+      "bytes": 126107448
+    },
+    {
+      "path": "C01_overlay.mp4",
+      "frames": 517,
+      "fps": 30.0,
+      "duration_s": 17.233333333333334,
+      "codec": "h264",
+      "bytes": 3729301
+    },
+    {
+      "path": "C02_overlay.mp4",
+      "frames": 567,
+      "fps": 30.0,
+      "duration_s": 18.9,
+      "codec": "h264",
+      "bytes": 4571103
+    },
+    {
+      "path": "C03_overlay.mp4",
+      "frames": 255,
+      "fps": 30.0,
+      "duration_s": 8.5,
+      "codec": "h264",
+      "bytes": 1781467
+    },
+    {
+      "path": "C04_overlay.mp4",
+      "frames": 559,
+      "fps": 30.0,
+      "duration_s": 18.633333333333333,
+      "codec": "h264",
+      "bytes": 4370025
+    },
+    {
+      "path": "C05_overlay.mp4",
+      "frames": 494,
+      "fps": 30.0,
+      "duration_s": 16.466666666666665,
+      "codec": "h264",
+      "bytes": 3778733
+    },
+    {
+      "path": "C06_overlay.mp4",
+      "frames": 472,
+      "fps": 30.0,
+      "duration_s": 15.733333333333333,
+      "codec": "h264",
+      "bytes": 3203264
+    },
+    {
+      "path": "candidate_overlays.mp4",
+      "frames": 2864,
+      "fps": 29.968914543265875,
+      "duration_s": 95.56569010416666,
+      "codec": "h264",
+      "bytes": 21427347
+    },
+    {
+      "path": "reviewed_highlights.mp4",
+      "frames": 2305,
+      "fps": 29.961385517749715,
+      "duration_s": 76.93235677083334,
+      "codec": "h264",
+      "bytes": 17058648
+    }
+  ],
+  "validation": {
+    "unit_tests_passed": 79,
+    "all_source_frames_have_cv": true,
+    "all_video_audio_frames_decoded": true,
+    "model_budgets_respected": true,
+    "source_frame_timestamp_alignment_under_1ms": true,
+    "native_classes_preserved": true,
+    "shuttle_trajectory_accuracy_evaluated": false
+  },
+  "court_geometry_audit": {
+    "date": "2026-11-12",
+    "status": "uncalibrated",
+    "finding": "The supplied player ROI does not follow the physical court markings. Raw Hough lines mix other sports and floor edges. Historical candidate filtering is provisional.",
+    "code_correction": "Hide raw edges by default, distinguish a dashed player ROI from physical court lines, and support explicit floor landmark homography with separate check points and proposed/reviewed status.",
+    "unit_tests_passed_after_correction": 85,
+    "new_model_calls": 0,
+    "preview_source_times_s": [5, 90, 300],
+    "preview": "outputs/court-correction/199_0HDQ-d8/review.html",
+    "physical_court_calibration_completed": false,
+    "full_overlay_rerendered_after_correction": false
+  },
+  "limitations": [
+    "Native detector labels are preserved; sports ball/tennis racket are not relabeled as badminton classes.",
+    "Dense OpenCV motion/lines are diagnostics, not ball identity or game outcomes.",
+    "Airborne court attribution and unobserved contact/landing/goal events remain unknown.",
+    "LLM packets support review and preference ranking; this command does not call external LLM APIs or certify highlights.",
+    "No dedicated shuttle checkpoint/continuous shuttle tracker was available. SAM still has false positives after stationarity filtering; boxes are unverified observations.",
+    "Court configuration remains a proposed ground ROI; players/airborne objects near its edges can be missed.",
+    "Basketball/football profiles have behavior tests; only badminton was run in this real-video demo."
+  ],
+  "artifacts": {
+    "full_overlay": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/full_overlay.mp4",
+    "layer_review": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/review.html",
+    "agent_review": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/reviewed.html",
+    "reviewed_reel": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/reviewed_highlights.mp4",
+    "agent_json": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/codex_review.json",
+    "packets": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/packets.jsonl",
+    "sampling": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/sampling-timeline.png",
+    "mac_chart": "outputs/fusion/199_0HDQ-d8/run-2026-11-12-filtered/mac-performance.png"
+  },
+  "render_source_sha256": {
+    "src/highlight/fusion.py": "0bacf3299b53e1381459ae9aa96aa3a39dca9f6c4edbed0827d7c377e5a45939",
+    "src/highlight/fusion_signals.py": "4444b14a0ca35c505bdf711b05526b99ad9287d29cd254b5a976788f83c8e5a5",
+    "src/highlight/fusion_review.py": "e39f3a8839bebb3497b748a3aba07f69284b00d61438e4902c7300bc46c4a482"
+  }
+}

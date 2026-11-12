@@ -1,0 +1,145 @@
+{
+  "date": "2026-11-02",
+  "scope": "Reuses high-resolution pose archives and saved SAM evidence. Optional fresh SAM refinement; includes clip, JPEG, and optional H.264 reel export. No YOLO inference.",
+  "runs": [
+    {
+      "video": "lp2hhnV7QXY",
+      "wall_s": 17.09783524996601,
+      "mining_s": 1.0203452080022544,
+      "saved_data_analysis_s": 1.0793149159289896,
+      "sam_calls": 6,
+      "selected_clips": 5,
+      "selected_s": 22.115000000000094,
+      "pattern_counts": {
+        "overhead_swing": 98,
+        "low_reach_recovery": 26,
+        "repeated_action_burst": 17
+      },
+      "peak_process_rss_gib": 6.816497802734375,
+      "court_excluded_rows": 18687,
+      "sam_supported_selected": 5,
+      "reel": "outputs/pattern-analysis/focused-2026-11-02/lp2hhnV7QXY/lp2hhnV7QXY_pattern_highlights.mp4",
+      "reel_media": {
+        "frames": 1174,
+        "fps": 30.0,
+        "duration_s": 39.13333333333333,
+        "codec": "h264"
+      }
+    },
+    {
+      "video": "iw0UE2AipIc",
+      "wall_s": 19.042433040915057,
+      "mining_s": 1.1142934169620275,
+      "saved_data_analysis_s": 1.1731123749632388,
+      "sam_calls": 12,
+      "selected_clips": 5,
+      "selected_s": 23.907999999999987,
+      "pattern_counts": {
+        "overhead_swing": 67,
+        "low_reach_recovery": 11,
+        "repeated_action_burst": 4
+      },
+      "peak_process_rss_gib": 6.8442840576171875,
+      "court_excluded_rows": 36688,
+      "sam_supported_selected": 5,
+      "reel": "outputs/pattern-analysis/focused-2026-11-02/iw0UE2AipIc/iw0UE2AipIc_pattern_highlights.mp4",
+      "reel_media": {
+        "frames": 904,
+        "fps": 30.0,
+        "duration_s": 30.133333333333333,
+        "codec": "h264"
+      }
+    },
+    {
+      "video": "0dj21Djz180",
+      "wall_s": 15.215626083081588,
+      "mining_s": 0.8317968330811709,
+      "saved_data_analysis_s": 0.8843439577613026,
+      "sam_calls": 7,
+      "selected_clips": 5,
+      "selected_s": 26.77500000000003,
+      "pattern_counts": {
+        "overhead_swing": 82,
+        "low_reach_recovery": 20,
+        "repeated_action_burst": 6
+      },
+      "peak_process_rss_gib": 6.7305755615234375,
+      "court_excluded_rows": 17235,
+      "sam_supported_selected": 4,
+      "reel": "outputs/pattern-analysis/focused-2026-11-02/0dj21Djz180/0dj21Djz180_pattern_highlights.mp4",
+      "reel_media": {
+        "frames": 1104,
+        "fps": 30.0,
+        "duration_s": 36.8,
+        "codec": "h264"
+      }
+    }
+  ],
+  "totals": {
+    "wall_s": 51.355894373962656,
+    "pattern_counts": {
+      "overhead_swing": 247,
+      "low_reach_recovery": 57,
+      "repeated_action_burst": 27
+    },
+    "selected_clips": 15,
+    "selected_s": 72.79800000000012,
+    "sam_calls": 25,
+    "yolo_calls": 0
+  },
+  "selected_sam_object_rejections": {
+    "shuttle_far_from_hand": 29,
+    "low_confidence_or_size": 637,
+    "shuttle_size_or_confidence": 130,
+    "racket_not_near_hand_or_oversized": 77,
+    "stationary_shuttle": 99,
+    "shuttle_near_floor": 9
+  },
+  "mac": {
+    "whole_system_cpu_mean_percent": 24.130769230769232,
+    "whole_system_gpu_mean_percent": 44,
+    "thermal_states": [
+      "nominal"
+    ],
+    "peak_process_rss_gib": 6.8442840576171875,
+    "note": "Whole-Mac counters include other apps; GPU memory is shared RAM. RSS is for the parent process. Thermal pressure is not temperature."
+  },
+  "verification": {
+    "source_checksums_match_previous_runs": true,
+    "all_clips_and_reels_decodable": true,
+    "reels_h264_30fps": true,
+    "selection_and_inference_budgets": true,
+    "ordered_pattern_phases": true,
+    "unit_tests_passed": 27,
+    "selection_accuracy_validated": false
+  },
+  "interpretation": [
+    "Counts are matches to hand-authored temporal rules, not ground-truth action counts or learned highlight preferences.",
+    "Foreground regions were proposed from video inspection; they are not surveyed court calibration.",
+    "SAM adds limited supporting evidence near hands; it does not confirm hits or point outcomes."
+  ],
+  "artifacts": {
+    "review": "outputs/pattern-analysis/focused-2026-11-02/review.html",
+    "phase_overview": "outputs/pattern-analysis/focused-2026-11-02/pattern-phases-overview.jpg",
+    "labels": "outputs/pattern-analysis/focused-2026-11-02/labels.csv",
+    "mac_chart": "outputs/pattern-analysis/focused-2026-11-02/mac-performance.png"
+  },
+  "source_sha256": {
+    "src/highlight/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/highlight/badminton.py": "070bbfa8481276e6b2c13f1bfc18e91d3a2775bdfc7e5856b71dd102d01cd82a",
+    "src/highlight/badminton_events.py": "f508dbef5d70c5419fcd739560395e67d9ff71956d6bdf83f1a30c7d474d0e44",
+    "src/highlight/candidates.py": "1ca8b86fff1e97de3e4381b21a2b658ceb63efcaecd00b52a853f3a17099b93f",
+    "src/highlight/court.py": "b42466c0b4fdc16e7b588f576a2c13792f90d40e1b3d3b04d515545b53b32231",
+    "src/highlight/detect.py": "c0579a6279acba66727963c3ddebc42681275d1c23d4557f1a096e498e417022",
+    "src/highlight/extract_pose.py": "5e3dc6d1d02d8c375ca0e8570cd2ba8e1d45f25421df17eeeb458041bd8b1434",
+    "src/highlight/objects.py": "5229735799ebbeb85d64d986b69266502b077704dd5e39f49e142e6be7a24584",
+    "src/highlight/pattern_signals.py": "78d4088a5d37158dcc47beb564e400505f9d123fc302edf26e97422c8b7a66ae",
+    "src/highlight/patterns.py": "97085b4cb58bb0df658dccbd2c7acd15fd3c03437f5a71194c9327cf67bce606",
+    "src/highlight/pose.py": "a4a73f0371fc0130682d2756f1c3acd9f60c17682ade59276aafc75d5ceb1e26",
+    "src/highlight/sam.py": "b8973bffec1cfd381551a49c959ea1bda04fca769cafa858c9d8177524ee18f9",
+    "src/highlight/shots.py": "9d88545fe2b0e7e764b6fb14a5b685a20ccd549ad2de332e4df470d308586ce2",
+    "src/highlight/signals.py": "f38748237a8fb77b740c2c586c7d570371fdac96f712cb7ebc204a74fb5d480e",
+    "src/highlight/video.py": "1ad0482ac40b85515076c8944ff34964ac4ec26bf37f8431e0366dbc38af6d2a",
+    "src/highlight/viz.py": "d872d6f6b92a521273f41d322068e487b19dda65213bda2c472863e327df15e6"
+  }
+}
