@@ -221,6 +221,18 @@
     "native_classes_preserved": true,
     "shuttle_trajectory_accuracy_evaluated": false
   },
+  "court_geometry_audit": {
+    "date": "2026-11-12",
+    "status": "uncalibrated",
+    "finding": "The supplied player ROI does not follow the physical court markings. Raw Hough lines mix other sports and floor edges. Historical candidate filtering is provisional.",
+    "code_correction": "Hide raw edges by default, distinguish a dashed player ROI from physical court lines, and support explicit floor landmark homography with separate check points and proposed/reviewed status.",
+    "unit_tests_passed_after_correction": 85,
+    "new_model_calls": 0,
+    "preview_source_times_s": [5, 90, 300],
+    "preview": "outputs/court-correction/199_0HDQ-d8/review.html",
+    "physical_court_calibration_completed": false,
+    "full_overlay_rerendered_after_correction": false
+  },
   "limitations": [
     "Native detector labels are preserved; sports ball/tennis racket are not relabeled as badminton classes.",
     "Dense OpenCV motion/lines are diagnostics, not ball identity or game outcomes.",

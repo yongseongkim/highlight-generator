@@ -17,6 +17,7 @@ import numpy as np
 
 from highlight.badminton import _crop_box
 from highlight.court import Court, load_net, load_polygon
+from highlight.court_geometry import draw_geometry, geometry_label, load_calibration
 from highlight.fusion_signals import PROFILES, DenseCv, ObjectTracklets, PoseIndex, RateSampler, evidence_packet, mark_stationary_sam, object_observations
 from highlight.patterns import _cut_review_clip, _reel, already_sampled, load_evidence
 from highlight.pose import FramePoses, file_identity, load_poses
@@ -129,19 +130,13 @@ class OverlayWriter:
 
 def draw_overlay(bgr: np.ndarray, index: PoseIndex, frame: int, t: float, cv: dict, mask: np.ndarray,
                  cv_analyzer: DenseCv, yolo: dict | None, sam: dict | None, width: int,
-                 candidate: str | None) -> np.ndarray:
+                 candidate: str | None, show_line_candidates: bool = False) -> np.ndarray:
     scale = width / index.court.width
     height = round(index.court.height * scale / 2) * 2
     image = cv2.resize(bgr, (width, height))
     changed = cv2.resize(mask, (width, height), interpolation=cv2.INTER_NEAREST) > 0
     image[changed] = (0.85 * image[changed] + 0.15 * np.array([40, 70, 255])).astype(np.uint8)
-    cv2.polylines(image, [np.rint(np.array(index.court.polygon) * scale).astype(np.int32)], True, (30, 240, 30), 2)
-    if index.court.net:
-        a, b = np.rint(np.array(index.court.net) * scale).astype(int)
-        cv2.line(image, tuple(a), tuple(b), (255, 255, 0), 2)
-    for line in cv_analyzer.lines:
-        x1, y1, x2, y2 = np.rint(np.array(line) * scale).astype(int)
-        cv2.line(image, (x1, y1), (x2, y2), (0, 190, 230), 1)
+    draw_geometry(image, index.court, show_line_candidates=show_line_candidates, lines=cv_analyzer.lines)
     pose_frame, rows = index.at(frame)
     if rows:
         p = index.poses
@@ -161,12 +156,13 @@ def draw_overlay(bgr: np.ndarray, index: PoseIndex, frame: int, t: float, cv: di
             x1, y1, x2, y2 = np.rint(np.array(obj["box"]) * scale).astype(int)
             cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
             cv2.putText(image, f"{name} {obj['native_label']} {obj['confidence']:.2f}",
-                        (x1, max(105, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.42, color, 1, cv2.LINE_AA)
+                        (x1, max(125, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.42, color, 1, cv2.LINE_AA)
     pose_state = f"pose f{pose_frame} age {(frame-pose_frame)/index.court.fps*1000:.0f}ms" if pose_frame is not None else "pose unknown"
-    cv2.rectangle(image, (0, 0), (width, 91), (20, 24, 30), -1)
+    cv2.rectangle(image, (0, 0), (width, 112), (20, 24, 30), -1)
     lines = [f"t={t:.2f}s  frame={frame}  CV every frame: motion={cv['roi_motion_fraction']:.3f}  {candidate or ''}",
              f"{pose_state} | {' | '.join(states)}",
-             "Green: ROI / yellow: line candidates / skeleton: pose / orange: YOLO objects / pink: SAM3",
+             geometry_label(index.court),
+             "Skeleton: pose / orange: YOLO objects / pink: SAM3" + (" / yellow: raw edges (debug)" if show_line_candidates else ""),
              "Boxes show sampled observations with bounded age. Missing = unknown. Ground ROI is not a flight plane."]
     for n, text in enumerate(lines):
         cv2.putText(image, text, (10, 19 + 21*n), cv2.FONT_HERSHEY_SIMPLEX, 0.47, (235, 235, 235), 1, cv2.LINE_AA)
@@ -190,6 +186,9 @@ def write_review(directory: Path, manifest: dict, packets: list[dict]) -> None:
 <h1>OpenCV · 포즈 · 객체 검출 · SAM 겹쳐 보기</h1>
 <p>전체 시간축에서 분석 결과를 확인합니다. 레이어마다 관측 시점과 주기가 다르며, 오래된 박스는 숨깁니다.
 선·2D 코트 경계·검출 신뢰도만으로 타구·착지·득점을 확정하지 않습니다.</p>
+<p>회색 점선은 선수 필터용 분석 영역이며 실제 코트 선이 아닙니다. 코트 교차점 보정이 없으면
+UNCALIBRATED로 표시합니다. 청록색 코트 템플릿도 PROPOSED이면 실제 바닥 선과 비교해야 합니다.
+노란 원시 선 후보는 진단 옵션을 켰을 때만 표시합니다.</p>
 <p><a href="manifest.json">전체 관측·호출·성능 기록</a> · <a href="llm_review_prompt.md">LLM 검토 지침</a> · <a href="packets.jsonl">후보별 근거 JSONL</a></p>'''
     missing = manifest["coverage"]["missing_expected_classes"]
     page += ('<p>현재 YOLO 객체 체크포인트에 없는 전용 클래스: ' + html.escape(', '.join(missing) or '없음') + '. SAM 관측은 별도로 기록합니다.</p>'
@@ -222,6 +221,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--output-fps", type=float, default=30)
     parser.add_argument("--device")
     parser.add_argument("--no-video", action="store_true")
+    parser.add_argument("--show-line-candidates", action="store_true", help="draw ambiguous raw edges for diagnostics only")
     parser.add_argument("--out-dir", type=Path, default=Path("outputs/fusion"))
     args = parser.parse_args(argv)
     if args.max_sam_calls < 0 or args.top_candidates <= 0 or min(args.cv_width, args.output_width) < 32 or args.output_width % 2:
@@ -238,7 +238,10 @@ def main(argv: list[str] | None = None) -> None:
     if Path(report["video"]).resolve() != args.video.resolve() or report["sport"] != args.sport:
         parser.error("Candidate report belongs to another video/sport")
     court = Court(meta["width"], meta["height"], meta["fps"], load_polygon(args.court, meta["width"], meta["height"]), [],
-                  "manual", "Reviewed ground ROI; airborne court association remains uncertain.", load_net(args.court, meta["width"], meta["height"]))
+                  "manual", "Supplied player ROI, not verified physical court geometry; airborne association remains uncertain.",
+                  load_net(args.court, meta["width"], meta["height"]), load_calibration(args.court, meta["width"], meta["height"]))
+    if court.calibration is not None and court.calibration["sport"] != args.sport:
+        parser.error("Court calibration belongs to another sport")
     index = PoseIndex(poses, court)
     units = sorted(sorted(report.get("units", report.get("selected_units", [])), key=lambda u: -u["ranking_score"])[:args.top_candidates], key=lambda u: u["start_s"])
     if not units:
@@ -357,7 +360,8 @@ def main(argv: list[str] | None = None) -> None:
                 if needed_output or frame in images_by_frame:
                     begin = time.perf_counter()
                     active = next((u["candidate_id"] for u in units if u["start_s"] <= t <= u["end_s"]), None)
-                    overlay = draw_overlay(bgr, index, frame, t, cv, mask, cv_analyzer, latest_object, latest_sam, args.output_width, active)
+                    overlay = draw_overlay(bgr, index, frame, t, cv, mask, cv_analyzer, latest_object, latest_sam,
+                                           args.output_width, active, args.show_line_candidates)
                     if frame in images_by_frame:
                         name = f"frame-{frame:06}.jpg"
                         if not cv2.imwrite(str(args.out_dir / name), overlay):

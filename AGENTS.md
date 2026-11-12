@@ -20,7 +20,7 @@ Legacy `detector/` and `videos/` have separate dependencies.
 | Files under `src/highlight/` | Responsibility |
 | --- | --- |
 | `video.py`, `pose.py`, `extract_pose.py` | CUDA/MPS decoding, YOLO poses, CPU ByteTrack, caches |
-| `court.py` | Line diagnostics, explicit court polygon and ground-level net |
+| `court.py`, `court_geometry.py` | Player ROI, opt-in line diagnostics, explicit floor landmark calibration |
 | `motion.py` | Strong motion seeds and bounded context expansion |
 | `game_units.py`, `plays.py` | Event-defined plays, motion mode, ranking, exports |
 | `pattern_signals.py`, `patterns.py` | Temporal action rules, cached SAM support, optional refinement |
@@ -38,6 +38,9 @@ measures cached extraction (`--motion-seeds` for contexts). `monitor_mac.py` and
 
 - Filter player feet to the supplied court with zero margin before motion/action
   analysis and SAM support. OpenCV lines do not identify the target court.
+- Player ROI is not physical court calibration. Draw raw edges only with the
+  debug flag; project court lines only from explicit floor landmarks. Four-point
+  fit error never verifies court identity; keep proposed/reviewed status explicit.
 - Motion cuts are estimates: defaults are 12 s before/8 s after; merged contexts
   stay bounded/disjoint. Tracking loss or a lull never verifies service/landing.
 - Event mode preserves whole units; skip rather than trim to fit budgets. Keep

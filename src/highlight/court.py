@@ -15,6 +15,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from highlight.court_geometry import draw_geometry, geometry_label, load_calibration
+
 
 @dataclass
 class Court:
@@ -26,6 +28,7 @@ class Court:
     source: str
     note: str
     net: list[list[float]] | None = None  # ground-level segment between this court's net posts
+    calibration: dict | None = None  # floor template fitted to explicit landmarks, never to the ROI
 
     def contains(self, point: np.ndarray, margin: float = 0.0) -> bool:
         if self.polygon is None:
@@ -107,7 +110,8 @@ def find_lines(bgr: np.ndarray) -> list[list[float]]:
     return [(segment / scale).tolist() for segment in kept]
 
 
-def inspect_court(video: Path, out_dir: Path, config: Path | None = None) -> Court:
+def inspect_court(video: Path, out_dir: Path, config: Path | None = None,
+                  show_line_candidates: bool = False) -> Court:
     """Median of a few opening frames reduces moving-player edges; costs no model calls."""
     capture = cv2.VideoCapture(str(video))
     try:
@@ -138,18 +142,15 @@ def inspect_court(video: Path, out_dir: Path, config: Path | None = None) -> Cou
                   if polygon is not None else
                   "Line candidates are diagnostic only. Multiple sports/courts are ambiguous; supply --court to restrict players.")
     court.net = load_net(config, width, height) if config is not None else None
+    court.calibration = load_calibration(config, width, height) if config is not None else None
     preview = background.copy()
-    for line in court.lines:
-        x1, y1, x2, y2 = np.rint(line).astype(int)
-        cv2.line(preview, (x1, y1), (x2, y2), (0, 190, 255), 2)
-    if polygon is not None:
-        cv2.polylines(preview, [np.asarray(polygon, np.int32)], True, (30, 255, 30), 4)
-    if court.net is not None:
-        a, b = np.asarray(court.net, np.int32)
-        cv2.line(preview, tuple(a), tuple(b), (255, 255, 0), 4)
-    cv2.putText(preview, f"Court: {court.source}; yellow = line candidates", (20, 35),
+    draw_geometry(preview, court, show_line_candidates=show_line_candidates)
+    label = geometry_label(court)
+    if show_line_candidates:
+        label += " | yellow: raw edges (debug)"
+    cv2.putText(preview, label, (20, 35),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 5)
-    cv2.putText(preview, f"Court: {court.source}; yellow = line candidates", (20, 35),
+    cv2.putText(preview, label, (20, 35),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     out_dir.mkdir(parents=True, exist_ok=True)
     if not cv2.imwrite(str(out_dir / f"{video.stem}_court.jpg"), preview):
@@ -163,8 +164,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("video", type=Path)
     parser.add_argument("--out-dir", type=Path, default=Path("outputs"))
     parser.add_argument("--court", type=Path, help="optional JSON with four court corners")
+    parser.add_argument("--show-line-candidates", action="store_true", help="draw ambiguous raw edges for diagnostics only")
     args = parser.parse_args(argv)
-    court = inspect_court(args.video, args.out_dir, args.court)
+    court = inspect_court(args.video, args.out_dir, args.court, args.show_line_candidates)
     print(f"{len(court.lines)} line candidates; {court.note}")
     print(f"saved {args.out_dir / (args.video.stem + '_court.jpg')}")
 
