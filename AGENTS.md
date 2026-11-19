@@ -3,6 +3,8 @@
 Keep this file concise and English. Keep user-facing documentation in Korean in
 `README.md`. Read relevant modules or README sections; prefer benchmark summaries
 over generated logs and media.
+`SPEC.md` documents implemented discovery. `docs/specs/` describes proposed sport
+engines; `docs/research/` records model research, not integration or Mac results.
 
 ## Commands
 

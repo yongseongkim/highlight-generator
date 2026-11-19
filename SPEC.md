@@ -3,6 +3,11 @@
 상태: 구현 사양. `highlight-discover`가 독립 탐색을 담당하고 기존 `highlight-fusion`이
 저장된 결과를 겹쳐 보여준다. 이 문서는 후보 발견과 검토의 계약이며 정확도·속도 보증이 아니다.
 
+종목별 경기 단위·하이라이트 유형·구장 탐색은 [종목 SPEC](docs/specs/README.md)의
+[배드민턴](docs/specs/badminton.md)·[농구](docs/specs/basketball.md)·[축구](docs/specs/football.md)에 정리한다.
+이 종목 엔진들은 후속 구현 설계이며, 여기의 독립 탐색 구현과 구분한다.
+SAM3·SAMURAI·공/셔틀 및 구장 전용 모델의 비교는 [모델 조사](docs/research/vision-models-2026-11-19.md)를 따른다.
+
 ## 목적과 범위
 
 YOLO Pose로 후보를 먼저 확정한 뒤 SAM3를 호출하면 포즈가 놓친 시간과 이미지 영역을
