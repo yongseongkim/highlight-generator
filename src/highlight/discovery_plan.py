@@ -111,7 +111,7 @@ def refinement_probes(observations: list[dict], units: list[dict], rows: list[di
     for unit in units:
         t = unit.get("peak_time_s", (unit["start_s"]+unit["end_s"])/2)
         parents.append({"frame_index": nearest_frame(rows, t), "time_s": t, "score": .5,
-                        "crop": context_crops(court)[0], "reason": "existing_candidate_detail"})
+                        "crop": context_crops(court)[0], "reason": unit.get("sam_detail_reason", "existing_candidate_detail")})
     duration = rows[-1]["time_s"] + 1/court.fps
     parents = spread(parents, max(1, math.ceil(slots/2)), duration)
     result = []

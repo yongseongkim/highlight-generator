@@ -24,6 +24,8 @@ from highlight.discovery_candidates import select_candidates
 from highlight.fusion_signals import PROFILES, DenseCv, ObjectTracklets, PoseIndex, RateSampler, evidence_packet, mark_stationary_sam, object_observations
 from highlight.patterns import _cut_review_clip, _reel, already_sampled, load_evidence
 from highlight.pose import FramePoses, file_identity
+from highlight.model_evidence import load_streams, document
+from highlight.model_mix import observation_rows, coverage as model_coverage
 from highlight.viz import draw_poses
 
 
@@ -143,7 +145,7 @@ class OverlayWriter:
 
 def draw_overlay(bgr: np.ndarray, index: PoseIndex, frame: int, t: float, cv: dict, mask: np.ndarray,
                  cv_analyzer: DenseCv, yolo: dict | None, sam: dict | None, width: int,
-                 candidate: str | None, show_line_candidates: bool = False) -> np.ndarray:
+                 candidate: str | None, show_line_candidates: bool = False, models: list[dict] | None = None) -> np.ndarray:
     scale = width / index.court.width
     height = round(index.court.height * scale / 2) * 2
     image = cv2.resize(bgr, (width, height))
@@ -157,7 +159,9 @@ def draw_overlay(bgr: np.ndarray, index: PoseIndex, frame: int, t: float, cv: di
         k[..., :2] *= scale
         draw_poses(image, FramePoses(p["track_id"][rows], p["box"][rows] * scale, p["score"][rows], k))
     states = []
-    for name, record, max_age, color in [("YOLO objects", yolo, 0.3, (0, 165, 255)), ("SAM3", sam, 0.12, (255, 40, 240))]:
+    layers = [("YOLO objects", yolo, 0.3, (0, 165, 255)), ("SAM3", sam, 0.12, (255, 40, 240))]
+    layers += [(row["model_name"], row, .12, (70, 220, 120)) for row in models or []]
+    for name, record, max_age, color in layers:
         age = t - record["time_s"] if record else math.inf
         active = record is not None and 0 <= age <= max_age
         states.append(f"{name}: {round(age*1000)}ms" if active else f"{name}: unsampled/expired")
@@ -168,14 +172,15 @@ def draw_overlay(bgr: np.ndarray, index: PoseIndex, frame: int, t: float, cv: di
                 continue
             x1, y1, x2, y2 = np.rint(np.array(obj["box"]) * scale).astype(int)
             cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(image, f"{name} {obj['native_label']} {obj['confidence']:.2f}",
+            confidence = f"{obj['confidence']:.2f}" if obj["confidence"] is not None else "unscored"
+            cv2.putText(image, f"{name} {obj['native_label']} {confidence}",
                         (x1, max(125, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.42, color, 1, cv2.LINE_AA)
     pose_state = f"pose f{pose_frame} age {(frame-pose_frame)/index.court.fps*1000:.0f}ms" if pose_frame is not None else "pose unknown"
     cv2.rectangle(image, (0, 0), (width, 112), (20, 24, 30), -1)
     lines = [f"t={t:.2f}s  frame={frame}  CV every frame: motion={cv['roi_motion_fraction']:.3f}  {candidate or ''}",
              f"{pose_state} | {' | '.join(states)}",
              geometry_label(index.court),
-             "Skeleton: pose / orange: YOLO objects / pink: SAM3" + (" / yellow: raw edges (debug)" if show_line_candidates else ""),
+             "Skeleton: pose / orange: YOLO / pink: SAM3 / green: mixed models" + (" / yellow: raw edges (debug)" if show_line_candidates else ""),
              "Boxes show sampled observations with bounded age. Missing = unknown. Ground ROI is not a flight plane."]
     for n, text in enumerate(lines):
         cv2.putText(image, text, (10, 19 + 21*n), cv2.FONT_HERSHEY_SIMPLEX, 0.47, (235, 235, 235), 1, cv2.LINE_AA)
@@ -262,6 +267,15 @@ def main(argv: list[str] | None = None) -> None:
     if report.get("court") and report["court"]["polygon"] != court.polygon:
         parser.error("Candidate player ROI differs")
     index = PoseIndex(poses, court)
+    try:
+        evidence = report.get("outputs", {}).get("model_evidence")
+        mixed_streams = load_streams([args.candidates.parent/evidence] if evidence else [], meta, args.sport)
+        mixed_rows = observation_rows(mixed_streams, index, meta)
+    except (ValueError, KeyError, TypeError, OSError) as exc:
+        parser.error(str(exc))
+    mixed_by_frame = defaultdict(list)
+    for row in mixed_rows:
+        mixed_by_frame[row["frame_index"]].append(row)
     reported_units = report.get("units", report.get("selected_units", []))
     units = (select_candidates(reported_units, args.top_candidates, math.inf)
              if report.get("pipeline") == "independent_discovery" else
@@ -272,6 +286,8 @@ def main(argv: list[str] | None = None) -> None:
     profile = PROFILES[args.sport]
     args.out_dir.mkdir(parents=True, exist_ok=True)
     (args.out_dir / "packets").mkdir(exist_ok=True)
+    dump(args.out_dir/"model_evidence.json", document(meta, args.sport, mixed_streams))
+    dump(args.out_dir/"model_observations.json", mixed_rows)
     details = []
     if args.sam_evidence:
         saved, details = load_evidence(args.sam_evidence, args.video)
@@ -326,6 +342,7 @@ def main(argv: list[str] | None = None) -> None:
     packet_images = defaultdict(list)
     cv_rows, object_rows, line_rows = [], [], []
     latest_object = latest_sam = None
+    latest_models = {}
     sam_frames = sorted(sam_by_frame)
     sam_cursor = 0
     cap = cv2.VideoCapture(str(args.video))
@@ -349,6 +366,8 @@ def main(argv: list[str] | None = None) -> None:
                 cv, mask, changed_lines = cv_analyzer.observe(bgr, frame, t)
                 cv_s += time.perf_counter() - begin
                 cv_rows.append(cv)
+                for record in mixed_by_frame[frame]:
+                    latest_models[record["stream_id"]] = record
                 cv_file.write(json.dumps(cv, allow_nan=False) + "\n")
                 if changed_lines:
                     line_rows.append({"frame_index": frame, "time_s": t, "line_candidates": cv_analyzer.lines, "camera_shift": cv_analyzer.camera_shift})
@@ -382,7 +401,7 @@ def main(argv: list[str] | None = None) -> None:
                     begin = time.perf_counter()
                     active = next((u["candidate_id"] for u in units if u["start_s"] <= t <= u["end_s"]), None)
                     overlay = draw_overlay(bgr, index, frame, t, cv, mask, cv_analyzer, latest_object, latest_sam,
-                                           args.output_width, active, args.show_line_candidates)
+                                           args.output_width, active, args.show_line_candidates, list(latest_models.values()))
                     if frame in images_by_frame:
                         name = f"frame-{frame:06}.jpg"
                         if not cv2.imwrite(str(args.out_dir / name), overlay):
@@ -408,7 +427,7 @@ def main(argv: list[str] | None = None) -> None:
     timing.update(dense_pass_wall_s=time.perf_counter() - loop_started, cv_compute_s=cv_s, overlay_draw_write_s=render_s,
                   object_calls=detector.calls if detector else 0, object_inference_s=detector.inference_s if detector else 0)
     dump(args.out_dir / "geometry_observations.json", line_rows)
-    packets = [evidence_packet(unit, cv_rows, index, object_rows, sam_rows, packet_images[unit["candidate_id"]], coverage) for unit in units]
+    packets = [evidence_packet(unit, cv_rows, index, object_rows+mixed_rows, sam_rows, packet_images[unit["candidate_id"]], coverage) for unit in units]
     for packet in packets:
         dump(args.out_dir / "packets" / f"{packet['candidate_id']}.json", packet)
     (args.out_dir / "packets.jsonl").write_text(''.join(json.dumps(packet, ensure_ascii=False, allow_nan=False) + "\n" for packet in packets))
@@ -425,11 +444,13 @@ def main(argv: list[str] | None = None) -> None:
     timing.update(candidate_export_s=time.perf_counter()-t0, total_s=time.perf_counter()-started)
     manifest = {"schema_version": 1, "video": str(args.video.resolve()), "source_identity": file_identity(args.video),
         "sport": args.sport, "court": asdict(court), "timing": timing, "coverage": {**coverage, "cv_frames": frame,
+            "models": model_coverage(mixed_streams, meta), "mixed_model_samples": len(mixed_rows),
             "cached_pose_frames": len(index.frames), "cached_sam_images": reused_sam, "fresh_sam_images": len(fresh),
             "cached_object_samples": len(cached_objects), "stationary_sam_observations_rejected": stationary_sam,
             "object_samples": len(object_rows), "object_budget_exhausted": bool(detector and sampler.calls >= args.max_object_calls)},
         "settings": {k: str(v) if isinstance(v, Path) else v for k,v in vars(args).items()},
-        "outputs": {"full_overlay": full_overlay.name if full_overlay else None, "packets": "packets.jsonl", "opencv": "opencv.jsonl", "objects": "objects.jsonl"},
+        "outputs": {"full_overlay": full_overlay.name if full_overlay else None, "packets": "packets.jsonl", "opencv": "opencv.jsonl", "objects": "objects.jsonl",
+                    "model_evidence": "model_evidence.json", "model_observations": "model_observations.json"},
         "limitations": ["Native detector labels are preserved; sports ball/tennis racket are not relabeled as badminton classes.",
             "Dense OpenCV motion/lines are diagnostics, not ball identity or game outcomes.",
             "Airborne court attribution and unobserved contact/landing/goal events remain unknown.",

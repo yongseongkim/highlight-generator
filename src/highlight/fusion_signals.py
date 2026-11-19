@@ -66,8 +66,9 @@ def object_observations(raw: list[dict], index: PoseIndex, frame: int, time_s: f
     output = []
     for n, item in enumerate(raw):
         box = np.asarray(item["box"], dtype=float)
-        confidence = float(item["confidence"])
-        if box.shape != (4,) or not np.isfinite(box).all() or not math.isfinite(confidence) or not 0 <= confidence <= 1 or (box[2:] <= box[:2]).any():
+        confidence = float(item["confidence"]) if item["confidence"] is not None else None
+        if (box.shape != (4,) or not np.isfinite(box).all() or
+                (confidence is not None and (not math.isfinite(confidence) or not 0 <= confidence <= 1)) or (box[2:] <= box[:2]).any()):
             continue
         label = item["label"]
         center = (box[:2] + box[2:]) / 2
@@ -86,11 +87,12 @@ def object_observations(raw: list[dict], index: PoseIndex, frame: int, time_s: f
         inside_ground = court.contains(center, margin=0)
         plausible = (not racket or (torso is not None and max(box[2:] - box[:2]) <= 2.5 * torso))
         plausible &= not shuttle or max(box[2:] - box[:2]) <= 0.035 * court.width
-        accepted = confidence >= 0.4 and plausible and (near_hand if racket else near_hand or inside_ground)
+        confident = confidence is None or confidence >= .4
+        accepted = confident and plausible and (near_hand if racket else near_hand or inside_ground)
         association = "near_in_court_player" if near_hand else "inside_ground_roi" if inside_ground else "unassociated"
         if label.lower() == "person":
             inside_foot = court.contains(np.array([center[0], box[3]]), margin=0)
-            accepted = confidence >= .4 and inside_foot
+            accepted = confident and inside_foot
             association = "person_foot_estimate_in_roi" if inside_foot else "outside_player_roi"
         output.append({"observation_id": f"{source}:{frame}:{n}", "source": source,
             "frame_index": frame, "time_s": round(time_s, 6), "native_label": label,
@@ -231,7 +233,7 @@ def evidence_packet(unit: dict, cv_rows: list[dict], pose_index: PoseIndex, obje
             if obj["accepted_for_display"]:
                 tracks[obj["tracklet_id"] or obj["observation_id"]].append(obj)
             else:
-                rejected.append({key: obj.get(key) for key in ("observation_id", "native_label", "time_s", "confidence", "association", "display_rejection_reason", "stationary_candidate")})
+                rejected.append({key: obj.get(key) for key in ("observation_id", "native_label", "time_s", "confidence", "association", "display_rejection_reason", "stationary_candidate", "observation_kind", "model_name", "source_track_id")})
     summaries = []
     for track, objects in tracks.items():
         objects.sort(key=lambda o: o["time_s"])
@@ -242,7 +244,7 @@ def evidence_packet(unit: dict, cv_rows: list[dict], pose_index: PoseIndex, obje
             "observations": len(objects), "observed_duration_s": round(duration, 3),
             "displacement_normalized_xy": round(displacement, 5),
             "possibly_stationary": bool(len(objects) >= 3 and duration >= 0.5 and np.max(np.linalg.norm(points - points[0], axis=1)) < 0.008),
-            "samples": [{key: o[key] for key in ("observation_id", "time_s", "center_normalized", "confidence", "hand_distance_torso")}
+            "samples": [{key: o.get(key) for key in ("observation_id", "time_s", "frame_index", "center_normalized", "confidence", "hand_distance_torso", "observation_kind", "source_track_id", "camera_epoch", "model_name")}
                         for o in bounded_sample(objects, 6)]})
     players = []
     context_samples = set(bounded_sample(sampled.tolist(), 4))
@@ -268,8 +270,7 @@ def evidence_packet(unit: dict, cv_rows: list[dict], pose_index: PoseIndex, obje
         players.append({"frame_index": frame, "time_s": round(float(pose_index.times[sample]), 4), "players": visible})
     summaries.sort(key=lambda s: (-s["observations"], -s["observed_duration_s"]))
     requested = set(unit.get("discovery", {}).get("evidence_refs", []))
-    discovery = [{"observation_id": obj["observation_id"], "time_s": obj["time_s"],
-                  "native_label": obj["native_label"], "confidence": obj["confidence"], "association": obj["association"]}
+    discovery = [{key: obj.get(key) for key in ("observation_id", "time_s", "frame_index", "native_label", "confidence", "association", "observation_kind", "source_track_id", "model_name")}
                  for row in sam_rows+object_rows for obj in row["objects"] if obj["observation_id"] in requested]
     discovery += [{"observation_id": f"cv:{row['frame_index']}", "time_s": row["time_s"],
                    "roi_motion_fraction": row["roi_motion_fraction"]} for row in cv_rows if f"cv:{row['frame_index']}" in requested]
@@ -281,6 +282,8 @@ def evidence_packet(unit: dict, cv_rows: list[dict], pose_index: PoseIndex, obje
         "cut_reasons": [unit.get("start_reason"), unit.get("end_reason")],
         "motion_seeds": [{"time_s": e["time_s"], "measurements": e.get("data", {})} for e in unit.get("events", []) if e["kind"] == "motion_peak"],
         "coverage": {"cv_frames": len(cv), "pose_samples": len(sampled), "object_samples": len(object_samples), "sam_images": len(sam_samples),
+                     "mixed_model_samples": sum("stream_id" in r for r in object_samples),
+                     "mixed_model_names": sorted({r["model_name"] for r in object_samples if "stream_id" in r}),
                      "object_model_status": coverage["object_model_status"],
                      "object_checkpoint_classes": coverage["object_checkpoint_classes"], "missing_expected_classes": coverage["missing_expected_classes"],
                      "unknown_expected_classes": coverage["unknown_expected_classes"]},
@@ -288,6 +291,7 @@ def evidence_packet(unit: dict, cv_rows: list[dict], pose_index: PoseIndex, obje
                    "scene_change_candidates": sum(r["scene_change_candidate"] for r in cv)},
         "player_context": players, "object_tracklets": summaries[:16], "omitted_tracklets": max(0, len(summaries)-16),
         "discovery_sources": unit.get("discovery", {}).get("sources", []),
+        "model_mix": unit.get("model_mix", {}),
         "discovery_evidence": bounded_sample(discovery, 24), "omitted_discovery_evidence": max(0, len(discovery)-24),
         "rejected_object_count": len(rejected), "rejected_object_observations": bounded_sample(rejected, 8), "keyframes": images,
         "unknowns": ["A 2D ground ROI does not establish an airborne object's court or its 3D height.",

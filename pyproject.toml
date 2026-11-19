@@ -29,6 +29,7 @@ highlight-plays = "highlight.plays:main"
 highlight-fusion = "highlight.fusion:main"
 highlight-fusion-review = "highlight.fusion_review:main"
 highlight-discover = "highlight.discovery:main"
+highlight-model-import = "highlight.model_evidence:main"
 
 [tool.uv.build-backend]
 module-name = "highlight"

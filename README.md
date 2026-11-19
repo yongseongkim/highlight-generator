@@ -192,6 +192,31 @@ uv run highlight-fusion path/to/game.mp4 --sport badminton --court court.json \
 기본 결과는 JSON과 원본 구간을 재생하는 `review.html`이며, `--export-clips`를 지정할 때만 새 클립을 인코딩합니다.
 드문 샘플링과 휴리스틱 연결의 누락·오탐은 실제 영상 라벨로 별도 검증해야 합니다. 전체 계약은 [SPEC.md](SPEC.md)를 참고하세요.
 
+## 모델 혼합 실행
+
+`highlight-discover`에서 CV·저장된 YOLO Pose·새 YOLO 객체·독립 SAM3 관측을 함께 사용합니다.
+객체 검출은 CV와 디코딩을 공유하고, 포즈가 없는 시점에도 후보를 만들 수 있습니다.
+
+```sh
+uv run highlight-discover input.mp4 --sport badminton --court court.json \
+  --poses outputs/input_poses.npz --object-model models/yolo11n.pt \
+  --object-fps 2 --max-object-calls 600 --sam-model models/sam3.pt \
+  --max-sam-calls 90 --device mps --out-dir outputs/mixed
+
+uv run highlight-fusion input.mp4 --sport badminton --court court.json \
+  --poses outputs/input_poses.npz --candidates outputs/mixed/discovery.json \
+  --sam-evidence outputs/mixed/sam_evidence.json --out-dir outputs/mixed-overlay
+```
+
+포즈가 없으면 `--poses`를 생략합니다. 일반 COCO 모델에는 셔틀 클래스가 없습니다.
+TrackNetV3 CSV와 SAMURAI의 별도 상자 내보내기는 `highlight-model-import`로 가져온 뒤
+`--model-evidence`를 반복 지정해 합칠 수 있습니다. 새 모델 자체의 설치·추론은 별도입니다.
+`model_evidence.json`은 객체 추론 없이 재사용할 수 있습니다.
+
+출처·원본 프레임·시각·신뢰도를 보존하고, 보간·예측은 직접 관측과 구분합니다.
+모델별 후보를 합집합으로 수집하며, 관심도 점수가 타구·착지·득점이나 랠리 경계를 검증하지 않습니다.
+상세 명령과 입력 계약은 [모델 혼합 SPEC](docs/specs/model-mix.md)을 참고하세요.
+
 ## 여러 분석 결과 겹쳐 보기와 LLM 검토
 
 분석 주기는 역할에 따라 나눕니다. OpenCV의 저렴한 연산을 많이 실행하고, 포즈·객체 검출·SAM은 다른 간격과 예산을 사용합니다.

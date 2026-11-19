@@ -2,6 +2,8 @@
 
 상태: 구현 사양. `highlight-discover`가 독립 탐색을 담당하고 기존 `highlight-fusion`이
 저장된 결과를 겹쳐 보여준다. 이 문서는 후보 발견과 검토의 계약이며 정확도·속도 보증이 아니다.
+선택적 YOLO 객체와 외부 TrackNet/상자 관측을 함께 사용하는 실행·입력 계약은
+[모델 혼합 SPEC](docs/specs/model-mix.md)을 따른다. 새 외부 모델의 추론 엔진 자체는 포함하지 않는다.
 
 종목별 경기 단위·하이라이트 유형·구장 탐색은 [종목 SPEC](docs/specs/README.md)의
 [배드민턴](docs/specs/badminton.md)·[농구](docs/specs/basketball.md)·[축구](docs/specs/football.md)에 정리한다.
@@ -14,7 +16,7 @@ YOLO Pose로 후보를 먼저 확정한 뒤 SAM3를 호출하면 포즈가 놓�
 SAM도 확인하지 못한다. CV, 포즈, SAM의 관측을 합집합으로 수집하고, SAM이 발견한
 새 움직임도 검토 후보에 넣는다. 포즈·기존 후보 파일은 선택 입력이다.
 
-이번 구현은 기존 YOLO 포즈 캐시와 SAM3 이미지 검출을 사용한다. SAM 마스크·비디오
+이번 구현은 기존 YOLO 포즈 캐시, SAM3 이미지 검출, 선택적 YOLO 객체·외부 모델 관측을 사용한다. SAM 마스크·비디오
 추적, 새 포즈 모델 학습, 자동 코트 보정, 외부 LLM 호출은 포함하지 않는다.
 포즈가 없는 객체 관측으로 관절을 만들어내지 않는다. 기존 `highlight-detect`,
 `highlight-patterns --refine-sam`, `highlight-fusion --refine-sam`의 후보 상세 분석은

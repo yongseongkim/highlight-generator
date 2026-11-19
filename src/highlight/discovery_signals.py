@@ -56,7 +56,8 @@ def pose_discovery_seeds(poses: dict, court, court_id: str) -> list[dict]:
              "evidence_refs": [f"pose:{e.data['frame_index']}"], "court_association": "in_court_player"} for e in events]
 
 
-def scan_video(video: Path, index: PoseIndex, sport: str, meta: dict, width: int = 640) -> tuple[list[dict], float]:
+def scan_video(video: Path, index: PoseIndex, sport: str, meta: dict, width: int = 640,
+               observer=None) -> tuple[list[dict], float]:
     analyzer = DenseCv(index.court, PROFILES[sport], width)
     cap = cv2.VideoCapture(str(video))
     rows = []
@@ -92,6 +93,8 @@ def scan_video(video: Path, index: PoseIndex, sport: str, meta: dict, width: int
             usable = any(np.any(index.poses["keypoints"][p, [9, 10], 2] >= .5) for p in players)
             row.update(camera_unstable=unstable, camera_shift=camera_shift, pose_players=len(players), usable_pose=usable)
             rows.append(row)
+            if observer is not None:
+                observer(bgr, frame, t)
             if time.perf_counter() - progress >= 30:
                 print(f"discovery CV: {t:.1f}s / frame {frame}", flush=True)
                 progress = time.perf_counter()

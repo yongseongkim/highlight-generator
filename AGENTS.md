@@ -12,6 +12,7 @@ engines; `docs/research/` records model research, not integration or Mac results
 - Behavior tests (no model inference): `uv run python -m unittest discover -s tests -v`
 - Whitespace: `git diff --check`
 - CLI details: `uv run highlight-plays --help` (also pose, detect, court, patterns, discover, fusion).
+- External model imports: `uv run highlight-model-import --help`; mixing contract in `docs/specs/model-mix.md`.
 - Docs-only edits: check links, fences, and command flags; skip model runs.
 
 ## Code map
@@ -32,6 +33,7 @@ Legacy `detector/` and `videos/` have separate dependencies.
 | `fusion.py`, `fusion_signals.py`, `fusion_review.py` | Multi-rate overlays, evidence packets, validated agent reviews |
 | `discovery_signals.py`, `discovery_plan.py` | Dense CV/optional pose seeds and independent SAM request scheduling |
 | `discovery_sam.py`, `discovery_candidates.py`, `discovery.py` | Exact-input cache, bounded candidate union, discovery CLI; contract in `SPEC.md` |
+| `discovery_objects.py`, `model_evidence.py`, `model_mix.py` | Independent YOLO scouts, source-bound imports, model evidence union; external inference remains separate |
 
 `scripts/benchmark_pose.py` measures fresh inference; `benchmark_patterns.py`
 measures cached extraction (`--motion-seeds` for contexts). `monitor_mac.py` and

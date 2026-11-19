@@ -27,7 +27,7 @@ def observations(details: list[dict], index, meta: dict) -> list[dict]:
 
 
 def sam_motion_seeds(rows: list[dict], court, labels: set[str], max_gap_s: float = 1.,
-                     blocked_frames: set[int] | None = None) -> list[dict]:
+                     blocked_frames: set[int] | None = None, source: str = "sam") -> list[dict]:
     """Nearest observed same-label pairs; no interpolation, identity or hit claim."""
     tracks = defaultdict(list)
     seeds = []
@@ -41,13 +41,15 @@ def sam_motion_seeds(rows: list[dict], court, labels: set[str], max_gap_s: float
             continue
         for obj in row["objects"]:
             label = obj["native_label"].lower()
-            if label not in labels or obj["confidence"] < .4:
+            if (label not in labels or obj.get("observation_kind", "observed") not in {"observed", "tracked"}
+                    or obj.get("stationary_candidate") or (obj["confidence"] is not None and obj["confidence"] < .4)):
                 continue
+            key = (label, obj.get("source_track_id"))
             box = np.array(obj["box"])
             if label == "person" and not court.contains(np.array([(box[0]+box[2])/2, box[3]]), margin=0):
                 continue
             center = (box[:2]+box[2:])/2
-            active = [history for history in tracks[label] if obj["time_s"]-history[-1]["time_s"] <= max_gap_s
+            active = [history for history in tracks[key] if obj["time_s"]-history[-1]["time_s"] <= max_gap_s
                       and not interrupted(history[-1]["frame_index"], obj["frame_index"])]
             # Duplicate crops at one source frame do not create temporal evidence.
             if any(h[-1]["frame_index"] == obj["frame_index"] and
@@ -65,15 +67,18 @@ def sam_motion_seeds(rows: list[dict], court, labels: set[str], max_gap_s: float
                 matched = history[0]
                 distance = np.linalg.norm(center-(np.array(matched["box"][:2])+matched["box"][2:])/2)
                 if max(4, court.width*.004) <= distance <= .2*math.hypot(court.width, court.height):
-                    seeds.append({"frame_index": obj["frame_index"], "time_s": obj["time_s"], "source": "sam",
-                        "score": float(min(1., .5*min(obj["confidence"], matched["confidence"])+.5*distance/(.08*court.width))),
+                    # Unscored visual tracks retain null confidence. This fallback
+                    # weights review interest only, never model certainty.
+                    strength = min(p["confidence"] if p["confidence"] is not None else .4 for p in [obj, matched])
+                    seeds.append({"frame_index": obj["frame_index"], "time_s": obj["time_s"], "source": source,
+                        "score": float(min(1., .5*strength+.5*distance/(.08*court.width))),
                         "evidence_refs": [matched["observation_id"], obj["observation_id"]],
-                        "reason": "sam_observed_position_change",
+                        "reason": f"{source}_position_change",
                         "court_association": "near_in_court_player" if all(p["association"] == "near_in_court_player" for p in [obj, matched]) else "unknown"})
                 history.append(obj)
             else:
                 active.append([obj])
-            tracks[label] = active[-64:]
+            tracks[key] = active[-64:]
     return seeds
 
 
@@ -100,7 +105,8 @@ def candidate_union(existing: list[dict], seeds: list[dict], duration: float, pr
             unit["origin_clip"] = unit.pop("clip")
         unit.setdefault("discovery", {"sources": ["pose"], "evidence_refs": [], "seeds": []})
     # Bound seed volume while retaining temporal coverage; all observations remain on disk.
-    seeds = [seed for source in ["sam", "cv", "pose"] for seed in spread([s for s in seeds if s["source"] == source], 120, duration)]
+    seeds = [seed for source in source_order({s["source"] for s in seeds})
+             for seed in spread([s for s in seeds if s["source"] == source], 120, duration)]
     pending = []
     for seed in seeds:
         found = next((u for u in units if u["start_s"] <= seed["time_s"] <= u["end_s"]), None)
@@ -140,7 +146,8 @@ def add_seed(unit: dict, seed: dict) -> None:
 
 def select_candidates(units: list[dict], limit: int, seconds: float) -> list[dict]:
     pools = {source: sorted([u for u in units if source in u["discovery"]["sources"]],
-                            key=lambda u: -u["ranking_score"]) for source in ["sam", "cv", "pose"]}
+                            key=lambda u: -u["ranking_score"]) for source in
+             source_order({s for u in units for s in u["discovery"]["sources"]})}
     selected, seen, used = [], set(), 0.
     while any(pools.values()) and len(selected) < limit:
         for pool in pools.values():
@@ -159,3 +166,8 @@ def select_candidates(units: list[dict], limit: int, seconds: float) -> list[dic
             if len(selected) == limit:
                 break
     return sorted(selected, key=lambda u: u["start_s"])
+
+
+def source_order(sources: set[str]) -> list[str]:
+    return [s for s in ["sam", "yolo_object", *sorted(sources-{"sam", "yolo_object", "cv", "pose"}), "cv", "pose"]
+            if s in sources]
