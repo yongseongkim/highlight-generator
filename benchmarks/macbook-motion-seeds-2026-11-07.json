@@ -1,0 +1,150 @@
+{
+  "date": "2026-11-07",
+  "scope": "Cached poses and SAM evidence; motion seeds expand into estimated context proposals. Includes clip/reel encoding. No new YOLO/SAM inference.",
+  "runs": [
+    {
+      "video": "lp2hhnV7QXY",
+      "wall_s": 12.04896308411844,
+      "pipeline_timing": {
+        "yolo_calls": 0,
+        "sam_calls": 0,
+        "unit_detection_s": 0.8603621660731733,
+        "interest_ranking_s": 3.3162305417936295,
+        "export_s": 7.0885929588694125,
+        "total_before_json_s": 11.294341667089611
+      },
+      "peak_parent_rss_gib": 0.315460205078125,
+      "motion_seeds": 66,
+      "context_candidates": 39,
+      "selected_clips": 5,
+      "selected_s": 80.40700000000014,
+      "selected_cut_reasons": {
+        "local_motion_lull": 8,
+        "context_limit": 2
+      },
+      "court_excluded_rows": 21628,
+      "sam_evidence_frames_reused": 81,
+      "sam_supported_selected_actions": 8,
+      "reel_media": {
+        "frames": 2412,
+        "fps": 29.993903796566535,
+        "duration_s": 80.41634114583333,
+        "codec": "h264"
+      },
+      "review": "outputs/motion-seeds/run-2026-11-07/lp2hhnV7QXY/review.html"
+    },
+    {
+      "video": "iw0UE2AipIc",
+      "wall_s": 9.711204833118245,
+      "pipeline_timing": {
+        "yolo_calls": 0,
+        "sam_calls": 0,
+        "unit_detection_s": 0.9909077920019627,
+        "interest_ranking_s": 3.1436818330548704,
+        "export_s": 4.797684542136267,
+        "total_before_json_s": 8.968484209151939
+      },
+      "peak_parent_rss_gib": 0.321380615234375,
+      "motion_seeds": 72,
+      "context_candidates": 35,
+      "selected_clips": 5,
+      "selected_s": 81.72499999999998,
+      "selected_cut_reasons": {
+        "local_motion_lull": 10
+      },
+      "court_excluded_rows": 39561,
+      "sam_evidence_frames_reused": 87,
+      "sam_supported_selected_actions": 4,
+      "reel_media": {
+        "frames": 2451,
+        "fps": 29.988123392456163,
+        "duration_s": 81.73235677083333,
+        "codec": "h264"
+      },
+      "review": "outputs/motion-seeds/run-2026-11-07/iw0UE2AipIc/review.html"
+    },
+    {
+      "video": "0dj21Djz180",
+      "wall_s": 8.481852000113577,
+      "pipeline_timing": {
+        "yolo_calls": 0,
+        "sam_calls": 0,
+        "unit_detection_s": 0.7255274159833789,
+        "interest_ranking_s": 2.57270316593349,
+        "export_s": 4.372886332916096,
+        "total_before_json_s": 7.695797499967739
+      },
+      "peak_parent_rss_gib": 0.2982635498046875,
+      "motion_seeds": 59,
+      "context_candidates": 30,
+      "selected_clips": 5,
+      "selected_s": 77.74399999999994,
+      "selected_cut_reasons": {
+        "context_limit": 3,
+        "local_motion_lull": 7
+      },
+      "court_excluded_rows": 17846,
+      "sam_evidence_frames_reused": 81,
+      "sam_supported_selected_actions": 4,
+      "reel_media": {
+        "frames": 2333,
+        "fps": 29.996534503454615,
+        "duration_s": 77.77565104166666,
+        "codec": "h264"
+      },
+      "review": "outputs/motion-seeds/run-2026-11-07/0dj21Djz180/review.html"
+    }
+  ],
+  "totals": {
+    "wall_s": 30.242019917350262,
+    "motion_seeds": 197,
+    "context_candidates": 104,
+    "selected_clips": 15,
+    "selected_s": 239.87600000000006,
+    "yolo_calls": 0,
+    "sam_calls": 0
+  },
+  "mac": {
+    "hardware": "MacBook Pro M4 Pro, 14 CPU / 20 GPU cores, 48 GB unified memory",
+    "peak_parent_rss_gib": 0.321380615234375,
+    "whole_system_cpu_mean_percent": 38.56666666666667,
+    "whole_system_gpu_mean_percent": 13.933333333333334,
+    "thermal_states": [
+      "nominal"
+    ],
+    "swap_out_bytes_during_monitoring": 0,
+    "notes": "RSS excludes FFmpeg child/GPU memory. CPU/GPU counters include other apps. No new inference ran. Thermal pressure is not temperature.",
+    "coverage": "From monitor startup through benchmark completion plus 15 seconds of idle time."
+  },
+  "validation": {
+    "unit_tests_passed": 66,
+    "all_clips_and_reels_h264_decodable": true,
+    "all_motion_seed_feet_inside_supplied_polygon": true,
+    "contexts_disjoint_and_bounded": true,
+    "selection_budgets_respected": true,
+    "verified_rally_boundaries": 0,
+    "highlight_accuracy_validated": false,
+    "complete_rally_recall_validated": false,
+    "visual_review_scope": "Strongest selected motion seed in each video inspected at -0.4/0/+0.4 seconds; this is not a labeled accuracy evaluation."
+  },
+  "artifacts": {
+    "review": "outputs/motion-seeds/run-2026-11-07/review.html",
+    "labels": "outputs/motion-seeds/run-2026-11-07/review_labels.csv",
+    "motion_timeline": "outputs/motion-seeds/run-2026-11-07/motion-timeline.png",
+    "peak_review": "outputs/motion-seeds/run-2026-11-07/motion-peak-review.jpg",
+    "mac_chart": "outputs/motion-seeds/run-2026-11-07/mac-performance.png",
+    "mac_csv": "outputs/motion-seeds/run-2026-11-07/mac-performance.csv"
+  },
+  "limitations": [
+    "Court polygons are proposals, not surveyed calibration; polygon membership cannot establish correct semantic court assignment.",
+    "Motion intensity is not a highlight preference probability. Quiet skillful play may be missed; normal movement may be selected.",
+    "Context cuts use local lulls, visibility gaps, or limits; they do not establish serves, landings, full rallies, or point outcomes.",
+    "Image-plane motion is not compensated for moving cameras."
+  ],
+  "source_sha256": {
+    "src/highlight/motion.py": "824d8c90d8ddb156f3037bfb8a2df747183a4ca817553cdd300223f8e3435b82",
+    "src/highlight/plays.py": "991115d1369534307060fd26c63754321201d9ce7f64fec8b9edc2807264993e",
+    "src/highlight/game_units.py": "00a7a2a33bb391263b884ad9617c2d3d8571a6ab65b6bb0f938f6854b3e109ba",
+    "src/highlight/pattern_signals.py": "8a204a6e122abde4f5c53bbc4e1bd4781c044111440d28b28b9f97e0f66572ac"
+  }
+}

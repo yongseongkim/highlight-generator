@@ -1,0 +1,238 @@
+{
+  "date": "2026-11-01",
+  "status": "complete",
+  "scope": "Fresh YOLO pose + basketball SAM 3 stage. Running this on badminton tests performance, not badminton highlight accuracy.",
+  "hardware": {
+    "chip_type": "Apple M4 Pro",
+    "machine_model": "Mac16,8",
+    "machine_name": "MacBook Pro",
+    "number_processors": "proc 14:10:4:0",
+    "physical_memory": "48 GB"
+  },
+  "gpu_cores": 20,
+  "software": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "python": "3.11.13",
+    "torch": "2.15.0",
+    "ultralytics": "8.4.175"
+  },
+  "settings": {
+    "model": "yolo11s-pose.pt",
+    "input_width": 1920,
+    "stride": 3,
+    "quantize": 16,
+    "overlay": false,
+    "sport": "basketball",
+    "sam_model": "models/sam3.pt",
+    "sam_stride": 2,
+    "clips": false
+  },
+  "weights": {
+    "weights_file": "models/sam3.pt",
+    "weights_size_bytes": 3450062241,
+    "huggingface_repo_commit": "3c879f39826c281e95690f02c7821c4de09afae7",
+    "huggingface_etag": "9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e"
+  },
+  "runs": [
+    {
+      "exit_code": 0,
+      "wall_s": 6367.371256875107,
+      "peak_rss_gib": 6.5508880615234375,
+      "id": "lp2hhnV7QXY",
+      "duration_s": 712.484,
+      "sampled_frames": 14224,
+      "wall_realtime_multiple": 0.11189609828870939,
+      "candidate_windows": 50,
+      "sam_ran": true,
+      "pipeline_timing": {
+        "device": "mps",
+        "pose_reused": false,
+        "pose_stage_s": 460.28628212492913,
+        "candidate_stage_s": 0.7648651250638068,
+        "sam_load_s": 6.205094957957044,
+        "sam_analysis_s": 5899.061259874841,
+        "sam_candidate_video_s": 402.4460000000002,
+        "sam_calls": 12040,
+        "sam_inference_s": 5834.2266505083535,
+        "sam_actual_device": "mps:0",
+        "sam_dtype": "torch.float16",
+        "total_before_json_s": 6366.317902792012
+      },
+      "decoded_frames": 42671,
+      "pose_only_baseline_wall_s": 464.24320891615935,
+      "combined_vs_pose_wall_ratio": 13.715593754705912,
+      "basketball_rule_labels_on_badminton": {
+        "noshot": 29,
+        "miss": 21
+      },
+      "sam_mean_ms_per_call": 484.5703198096639
+    },
+    {
+      "exit_code": 0,
+      "wall_s": 5534.073218249949,
+      "peak_rss_gib": 7.0336456298828125,
+      "id": "iw0UE2AipIc",
+      "duration_s": 719.334,
+      "sampled_frames": 14373,
+      "wall_realtime_multiple": 0.12998273995143786,
+      "candidate_windows": 62,
+      "sam_ran": true,
+      "pipeline_timing": {
+        "device": "mps",
+        "pose_reused": false,
+        "pose_stage_s": 515.184462208068,
+        "candidate_stage_s": 0.9344993750564754,
+        "sam_load_s": 7.143494667019695,
+        "sam_analysis_s": 5009.440418583108,
+        "sam_candidate_video_s": 313.3539999999998,
+        "sam_calls": 9368,
+        "sam_inference_s": 4957.009083878947,
+        "sam_actual_device": "mps:0",
+        "sam_dtype": "torch.float16",
+        "total_before_json_s": 5532.703260416165
+      },
+      "decoded_frames": 43117,
+      "pose_only_baseline_wall_s": 495.75907895807177,
+      "combined_vs_pose_wall_ratio": 11.162827778930069,
+      "basketball_rule_labels_on_badminton": {
+        "noshot": 61,
+        "miss": 1
+      },
+      "sam_mean_ms_per_call": 529.1427288512967
+    },
+    {
+      "exit_code": 0,
+      "wall_s": 4333.604543375084,
+      "peak_rss_gib": 6.6400604248046875,
+      "id": "0dj21Djz180",
+      "duration_s": 594.7710000000001,
+      "sampled_frames": 11871,
+      "wall_realtime_multiple": 0.1372462563316362,
+      "candidate_windows": 52,
+      "sam_ran": true,
+      "pipeline_timing": {
+        "device": "mps",
+        "pose_reused": false,
+        "pose_stage_s": 432.7435021249112,
+        "candidate_stage_s": 0.5691349159460515,
+        "sam_load_s": 7.267955000046641,
+        "sam_analysis_s": 3891.707324750023,
+        "sam_candidate_video_s": 252.04699999999983,
+        "sam_calls": 7533,
+        "sam_inference_s": 3850.5071424846537,
+        "sam_actual_device": "mps:0",
+        "sam_dtype": "torch.float16",
+        "total_before_json_s": 4332.288489250001
+      },
+      "decoded_frames": 35611,
+      "pose_only_baseline_wall_s": 402.2746373328846,
+      "combined_vs_pose_wall_ratio": 10.772751103841035,
+      "basketball_rule_labels_on_badminton": {
+        "miss": 17,
+        "noshot": 35
+      },
+      "sam_mean_ms_per_call": 511.15188404150456
+    }
+  ],
+  "completed_totals": {
+    "videos": 3,
+    "duration_s": 2026.589,
+    "wall_s": 16235.04901850014,
+    "realtime_multiple": 0.12482801854744412,
+    "sam_calls": 28941,
+    "sam_analysis_s": 14800.209003207972,
+    "pose_stage_s": 1408.2142464579083,
+    "decoded_frames": 121399,
+    "pose_samples": 40468,
+    "sam_candidate_video_s": 967.8469999999999,
+    "sam_fraction_of_wall": 0.9116208387386363,
+    "combined_vs_pose_only_wall_ratio": 11.917583508971072,
+    "sam_mean_ms_per_call": 505.9169647514583
+  },
+  "mac_monitoring": {
+    "interval_s": 2,
+    "active_samples": 8093,
+    "cpu_mean_percent": 6.935302112937106,
+    "gpu_mean_percent": 95.89472383541332,
+    "available_ram_min_gib": 8.78076171875,
+    "gpu_system_memory_peak_gib": 10.522537231445312,
+    "swap_start_gib": 1.7398681640625,
+    "swap_latest_gib": 1.7398681640625,
+    "swap_in_bytes": 16619012096,
+    "swap_out_bytes": 38731776,
+    "thermal_states": [
+      "fair",
+      "nominal"
+    ],
+    "notes": [
+      "Whole-Mac CPU and GPU counters include other apps.",
+      "Peak process RSS excludes GPU allocations. GPU memory is shared system RAM.",
+      "Thermal pressure is not temperature in Celsius."
+    ]
+  },
+  "power": {
+    "initial_source": "Now drawing from 'AC Power'",
+    "sampling_started_at": "2026-11-01T17:43:53.587862+09:00",
+    "first_observed_battery_percent": 6,
+    "latest_observed_battery_percent": 100,
+    "charging_states_observed": [
+      "No",
+      "Yes"
+    ],
+    "note": "Power sampling began after a low-battery/not-charging reading during the first SAM pass. Conditions varied; raw power_samples.jsonl records subsequent changes."
+  },
+  "artifacts": {
+    "raw_benchmark": "outputs/macbook/combined-full-2026-11-01/benchmark.json",
+    "monitor_summary": "outputs/macbook/combined-full-2026-11-01/mac_monitor_summary.json",
+    "chart": "outputs/macbook/combined-full-2026-11-01/mac-performance.png",
+    "csv": "outputs/macbook/combined-full-2026-11-01/mac-performance.csv",
+    "raw_system_metrics": "outputs/macbook/combined-full-2026-11-01/mac_metrics.jsonl",
+    "power_samples": "outputs/macbook/combined-full-2026-11-01/power_samples.jsonl",
+    "verification": "outputs/macbook/combined-full-2026-11-01/verification.json"
+  },
+  "verification": {
+    "runs": [
+      {
+        "video": "lp2hhnV7QXY",
+        "status": "passed",
+        "decoded_frames": 42671,
+        "pose_samples": 14224,
+        "candidate_windows": 50,
+        "sam_calls": 12040,
+        "input_sha256": "913711efc6d86e68539af60cc41d74532ca9cf834090bbd4b06b15ffa17bdd02",
+        "sam_device": "mps:0",
+        "sam_dtype": "torch.float16",
+        "pose_cache_reused": false
+      },
+      {
+        "video": "iw0UE2AipIc",
+        "status": "passed",
+        "decoded_frames": 43117,
+        "pose_samples": 14373,
+        "candidate_windows": 62,
+        "sam_calls": 9368,
+        "input_sha256": "16e0c21f43773fbfa8726beaf6db07e659d879037973a4b036803ef50e39dde5",
+        "sam_device": "mps:0",
+        "sam_dtype": "torch.float16",
+        "pose_cache_reused": false
+      },
+      {
+        "video": "0dj21Djz180",
+        "status": "passed",
+        "decoded_frames": 35611,
+        "pose_samples": 11871,
+        "candidate_windows": 52,
+        "sam_calls": 7533,
+        "input_sha256": "5d3a28ef829d75c14ac81c6fcffcbcdff1d5254c06692b0e85c70cacabaa137a",
+        "sam_device": "mps:0",
+        "sam_dtype": "torch.float16",
+        "pose_cache_reused": false
+      }
+    ],
+    "weights_sha256": "9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e",
+    "weights_match_official_cached_etag": true,
+    "decoded_frames_total": 121399,
+    "pose_samples_total": 40468,
+    "sam_calls_total": 28941
+  }
+}
