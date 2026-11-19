@@ -9,6 +9,8 @@ from highlight.court import Court
 from highlight.game_units import SportEvent, rank_units
 from highlight.motion import expand_seeds, find_seeds, motion_samples
 from highlight.plays import main as plays_main
+from highlight.discovery_signals import pose_discovery_seeds
+from highlight.discovery_candidates import candidate_union
 
 
 def pose_fixture(moving=True, scale=1):
@@ -45,6 +47,16 @@ def peak(t, energy=3, court_id="main"):
 
 
 class MotionSignalTests(unittest.TestCase):
+    def test_discovery_builds_pose_candidates_without_a_preexisting_report(self):
+        seeds = pose_discovery_seeds(pose_fixture(), target_court(), "main")
+        self.assertTrue(seeds)
+        units = candidate_union([], seeds, 12)
+        self.assertEqual(units[0]["discovery"]["sources"], ["pose"])
+        self.assertFalse(units[0]["boundary_verified"])
+        outside = target_court()
+        outside.polygon = [[500,0],[640,0],[640,360],[500,360]]
+        self.assertEqual(pose_discovery_seeds(pose_fixture(), outside, "main"), [])
+
     def test_fast_arm_without_overhead_produces_unverified_seed(self):
         samples, _ = motion_samples(pose_fixture(), target_court())
         seeds, _ = find_seeds(samples)

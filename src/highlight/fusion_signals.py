@@ -87,6 +87,11 @@ def object_observations(raw: list[dict], index: PoseIndex, frame: int, time_s: f
         plausible = (not racket or (torso is not None and max(box[2:] - box[:2]) <= 2.5 * torso))
         plausible &= not shuttle or max(box[2:] - box[:2]) <= 0.035 * court.width
         accepted = confidence >= 0.4 and plausible and (near_hand if racket else near_hand or inside_ground)
+        association = "near_in_court_player" if near_hand else "inside_ground_roi" if inside_ground else "unassociated"
+        if label.lower() == "person":
+            inside_foot = court.contains(np.array([center[0], box[3]]), margin=0)
+            accepted = confidence >= .4 and inside_foot
+            association = "person_foot_estimate_in_roi" if inside_foot else "outside_player_roi"
         output.append({"observation_id": f"{source}:{frame}:{n}", "source": source,
             "frame_index": frame, "time_s": round(time_s, 6), "native_label": label,
             "confidence": confidence, "box": box.tolist(),
@@ -94,7 +99,7 @@ def object_observations(raw: list[dict], index: PoseIndex, frame: int, time_s: f
             "center_normalized": (center / [court.width, court.height]).round(5).tolist(),
             "accepted_for_display": bool(accepted), "nearest_player_track_id": nearest_track,
             "hand_distance_torso": hand_distance if math.isfinite(hand_distance) else None,
-            "association": "near_in_court_player" if near_hand else "inside_ground_roi" if inside_ground else "unassociated",
+            "association": association,
             "tracklet_id": None})
     return output
 
@@ -262,6 +267,15 @@ def evidence_packet(unit: dict, cv_rows: list[dict], pose_index: PoseIndex, obje
                 "hand_height_above_foot_torso": round(float(np.min(foot[1] - known[:, 1]) / torso), 3) if len(known) else None})
         players.append({"frame_index": frame, "time_s": round(float(pose_index.times[sample]), 4), "players": visible})
     summaries.sort(key=lambda s: (-s["observations"], -s["observed_duration_s"]))
+    requested = set(unit.get("discovery", {}).get("evidence_refs", []))
+    discovery = [{"observation_id": obj["observation_id"], "time_s": obj["time_s"],
+                  "native_label": obj["native_label"], "confidence": obj["confidence"], "association": obj["association"]}
+                 for row in sam_rows+object_rows for obj in row["objects"] if obj["observation_id"] in requested]
+    discovery += [{"observation_id": f"cv:{row['frame_index']}", "time_s": row["time_s"],
+                   "roi_motion_fraction": row["roi_motion_fraction"]} for row in cv_rows if f"cv:{row['frame_index']}" in requested]
+    discovery += [{"observation_id": f"pose:{frame}", "time_s": float(pose_index.times[i]),
+                   "in_court_players": len(pose_index.rows[int(frame)])}
+                  for i, frame in enumerate(pose_index.frames) if f"pose:{frame}" in requested and pose_index.rows[int(frame)]]
     return {"candidate_id": unit["candidate_id"], "sport": coverage["sport"], "interval_s": [start, end],
         "boundary_status": unit.get("boundary_status", "estimated"),
         "cut_reasons": [unit.get("start_reason"), unit.get("end_reason")],
@@ -273,6 +287,8 @@ def evidence_packet(unit: dict, cv_rows: list[dict], pose_index: PoseIndex, obje
         "opencv": {"mean_motion_fraction": round(float(np.mean([r["roi_motion_fraction"] for r in cv])), 5) if cv else None,
                    "scene_change_candidates": sum(r["scene_change_candidate"] for r in cv)},
         "player_context": players, "object_tracklets": summaries[:16], "omitted_tracklets": max(0, len(summaries)-16),
+        "discovery_sources": unit.get("discovery", {}).get("sources", []),
+        "discovery_evidence": bounded_sample(discovery, 24), "omitted_discovery_evidence": max(0, len(discovery)-24),
         "rejected_object_count": len(rejected), "rejected_object_observations": bounded_sample(rejected, 8), "keyframes": images,
         "unknowns": ["A 2D ground ROI does not establish an airborne object's court or its 3D height.",
                      "Sampled or missing detections do not confirm contact, ground impact, rally boundaries, or goals.",

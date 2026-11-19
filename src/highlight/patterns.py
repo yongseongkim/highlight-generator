@@ -42,6 +42,8 @@ def load_evidence(path: Path, video: Path, seen: set[Path] | None = None) -> tup
     report = json.loads(path.read_text())
     if Path(report["video"]).resolve() != video.resolve():
         raise ValueError("SAM evidence belongs to a different source video")
+    if report.get("source_identity") is not None and report["source_identity"] != file_identity(video):
+        raise ValueError("SAM evidence source video changed")
     details = []
     if report.get("sam_evidence"):
         parent = Path(report["sam_evidence"])

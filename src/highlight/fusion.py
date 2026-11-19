@@ -18,9 +18,12 @@ import numpy as np
 from highlight.badminton import _crop_box
 from highlight.court import Court, load_net, load_polygon
 from highlight.court_geometry import draw_geometry, geometry_label, load_calibration
+from highlight.discovery_sam import detail_source
+from highlight.discovery_signals import source_poses, video_metadata
+from highlight.discovery_candidates import select_candidates
 from highlight.fusion_signals import PROFILES, DenseCv, ObjectTracklets, PoseIndex, RateSampler, evidence_packet, mark_stationary_sam, object_observations
 from highlight.patterns import _cut_review_clip, _reel, already_sampled, load_evidence
-from highlight.pose import FramePoses, file_identity, load_poses
+from highlight.pose import FramePoses, file_identity
 from highlight.viz import draw_poses
 
 
@@ -33,18 +36,26 @@ def candidate_peak(unit: dict, pose_index: PoseIndex) -> tuple[int, int | None]:
     if seeds:
         seed = max(seeds, key=lambda e: e["data"]["energy"])
         return int(seed["data"]["frame_index"]), seed["data"].get("track_id")
+    discovery = unit.get("discovery", {}).get("seeds", [])
+    if discovery:
+        return int(max(discovery, key=lambda s: s["score"])["frame_index"]), None
     t = (unit["start_s"] + unit["end_s"]) / 2
+    if not len(pose_index.frames):
+        return max(0, round(t*pose_index.court.fps)), None
     index = int(np.argmin(abs(pose_index.times - t)))
     return int(pose_index.frames[index]), None
 
 
-def keyframe_plan(units: list[dict], pose_index: PoseIndex) -> dict[int, list[str]]:
+def keyframe_plan(units: list[dict], pose_index: PoseIndex, frame_count: int | None = None) -> dict[int, list[str]]:
     frames = defaultdict(list)
     for unit in units:
         peak, _ = candidate_peak(unit, pose_index)
         for offset in [-0.3, 0, 0.3]:
             wanted = peak + round(offset * pose_index.court.fps)
-            frame = int(pose_index.frames[np.argmin(abs(pose_index.frames - wanted))])
+            frame = (int(pose_index.frames[np.argmin(abs(pose_index.frames - wanted))])
+                     if len(pose_index.frames) else max(0, wanted))
+            if frame_count is not None:
+                frame = min(frame_count-1, frame)
             if unit["candidate_id"] not in frames[frame]:
                 frames[frame].append(unit["candidate_id"])
     return dict(frames)
@@ -53,6 +64,8 @@ def keyframe_plan(units: list[dict], pose_index: PoseIndex) -> dict[int, list[st
 def refine_sam(video: Path, units: list[dict], index: PoseIndex, details: list[dict], model: Path,
                device: str | None, budget: int) -> tuple[list[dict], dict]:
     from highlight.sam import Sam3, require_weights
+    if not len(index.frames):
+        return [], {"sam_calls": 0, "sam_load_s": 0., "sam_inference_s": 0.}
     plan = []
     for unit in units:
         peak, track_id = candidate_peak(unit, index)
@@ -201,7 +214,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("video", type=Path)
     parser.add_argument("--sport", required=True, choices=sorted(PROFILES))
-    parser.add_argument("--poses", type=Path, required=True)
+    parser.add_argument("--poses", type=Path, help="optional cached poses; discovery candidates also work without poses")
     parser.add_argument("--court", type=Path, required=True)
     parser.add_argument("--candidates", type=Path, required=True, help="saved highlight-plays JSON")
     parser.add_argument("--sam-evidence", type=Path)
@@ -231,21 +244,28 @@ def main(argv: list[str] | None = None) -> None:
     if (args.out_dir / "manifest.json").exists():
         parser.error("Use a fresh output directory")
     started = time.perf_counter()
-    poses, meta = load_poses(args.poses)
-    if Path(meta["video"]).resolve() != args.video.resolve() or (meta.get("source_identity") is not None and meta["source_identity"] != file_identity(args.video)):
-        parser.error("Pose cache belongs to another/changed source video")
+    meta = video_metadata(args.video)
+    try:
+        poses = source_poses(args.poses, meta)
+    except ValueError as exc:
+        parser.error(str(exc))
     report = json.loads(args.candidates.read_text())
     if Path(report["video"]).resolve() != args.video.resolve() or report["sport"] != args.sport:
         parser.error("Candidate report belongs to another video/sport")
+    if report.get("source_identity", meta["source_identity"]) != meta["source_identity"]:
+        parser.error("Candidate source changed")
     court = Court(meta["width"], meta["height"], meta["fps"], load_polygon(args.court, meta["width"], meta["height"]), [],
                   "manual", "Supplied player ROI, not verified physical court geometry; airborne association remains uncertain.",
                   load_net(args.court, meta["width"], meta["height"]), load_calibration(args.court, meta["width"], meta["height"]))
     if court.calibration is not None and court.calibration["sport"] != args.sport:
         parser.error("Court calibration belongs to another sport")
+    if report.get("court") and report["court"]["polygon"] != court.polygon:
+        parser.error("Candidate player ROI differs")
     index = PoseIndex(poses, court)
-    units = sorted(sorted(report.get("units", report.get("selected_units", [])), key=lambda u: -u["ranking_score"])[:args.top_candidates], key=lambda u: u["start_s"])
-    if not units:
-        parser.error("No candidate intervals to inspect")
+    reported_units = report.get("units", report.get("selected_units", []))
+    units = (select_candidates(reported_units, args.top_candidates, math.inf)
+             if report.get("pipeline") == "independent_discovery" else
+             sorted(sorted(reported_units, key=lambda u: -u["ranking_score"])[:args.top_candidates], key=lambda u: u["start_s"]))
     for i, unit in enumerate(units, 1):
         unit.update(candidate_id=f"C{i:02}", sport=args.sport)
     sampler = RateSampler(args.object_fps, args.object_peak_fps, units, args.max_object_calls)
@@ -269,7 +289,8 @@ def main(argv: list[str] | None = None) -> None:
     for i, detail in enumerate(sorted(details, key=lambda d: (d["frame_index"], tuple(d.get("crop", []))))):
         frame = int(detail["frame_index"])
         t = float(detail.get("decoder_time_s", frame / court.fps))
-        sam_by_frame[frame].append({"time_s": t, "objects": object_observations(detail["objects"], index, frame, t, f"sam3-image-{i}")})
+        source = detail_source(detail) if report.get("pipeline") == "independent_discovery" else f"sam3-image-{i}"
+        sam_by_frame[frame].append({"time_s": t, "objects": object_observations(detail["objects"], index, frame, t, source)})
     sam_rows = [{"frame_index": frame, "time_s": images[0]["time_s"], "images": len(images),
                  "objects": [obj for image in images for obj in image["objects"]]} for frame, images in sorted(sam_by_frame.items())]
     stationary_sam = mark_stationary_sam(sam_rows, court.width)
@@ -301,7 +322,7 @@ def main(argv: list[str] | None = None) -> None:
         coverage["object_model_status"] = "reused" if cached_manifest["coverage"]["object_model_status"] != "not_run" else "not_run"
     tracker = ObjectTracklets(court.width, court.height)
     cv_analyzer = DenseCv(court, profile, args.cv_width, args.line_interval)
-    images_by_frame = keyframe_plan(units, index)
+    images_by_frame = keyframe_plan(units, index, meta["frames"])
     packet_images = defaultdict(list)
     cv_rows, object_rows, line_rows = [], [], []
     latest_object = latest_sam = None

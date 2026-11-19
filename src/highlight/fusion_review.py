@@ -34,6 +34,7 @@ def validate_reviews(reviews: list[dict], packets: list[dict]) -> list[dict]:
         known.update(f"pose:{sample['frame_index']}" for sample in packet["player_context"])
         known.update(sample["observation_id"] for track in packet["object_tracklets"] for sample in track["samples"])
         known.update(obj["observation_id"] for obj in packet.get("rejected_object_observations", []))
+        known.update(obj["observation_id"] for obj in packet.get("discovery_evidence", []))
         if not review["evidence_refs"] or not set(review["evidence_refs"]) <= known:
             raise ValueError(f"{cid} must cite existing keyframes, pose frames or object observation IDs")
     return reviews

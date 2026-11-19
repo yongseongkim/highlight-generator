@@ -9,7 +9,7 @@ over generated logs and media.
 - Install: `uv sync --frozen`
 - Behavior tests (no model inference): `uv run python -m unittest discover -s tests -v`
 - Whitespace: `git diff --check`
-- CLI details: `uv run highlight-plays --help` (also pose, detect, court, patterns, fusion).
+- CLI details: `uv run highlight-plays --help` (also pose, detect, court, patterns, discover, fusion).
 - Docs-only edits: check links, fences, and command flags; skip model runs.
 
 ## Code map
@@ -28,6 +28,8 @@ Legacy `detector/` and `videos/` have separate dependencies.
 | `detect.py`, `signals.py`, `candidates.py`, `shots.py` | Sport dispatch, original cues, inferred basket outcomes |
 | `sam.py`, `objects.py`, `viz.py` | Detail inference and visualization |
 | `fusion.py`, `fusion_signals.py`, `fusion_review.py` | Multi-rate overlays, evidence packets, validated agent reviews |
+| `discovery_signals.py`, `discovery_plan.py` | Dense CV/optional pose seeds and independent SAM request scheduling |
+| `discovery_sam.py`, `discovery_candidates.py`, `discovery.py` | Exact-input cache, bounded candidate union, discovery CLI; contract in `SPEC.md` |
 
 `scripts/benchmark_pose.py` measures fresh inference; `benchmark_patterns.py`
 measures cached extraction (`--motion-seeds` for contexts). `monitor_mac.py` and
@@ -50,6 +52,9 @@ measures cached extraction (`--motion-seeds` for contexts). `monitor_mac.py` and
   external events; the basketball rim rule is inferred evidence.
 - `highlight-plays` uses cached poses/optional SAM only. Fresh SAM is bounded in
   detect/pattern refinement; require its gated checkpoint before expensive work.
+- Discovery reserves pose-independent scout requests before refinement. Missing
+  pose never disables scouting; single/static detections do not verify motion.
+  Keep unassociated evidence reviewable without claiming airborne court identity.
 - Pose cache keys include source/checkpoint identity, stride, width, confidence.
   Associate saved SAM by source frame/geometry/crop, not cross-cache IDs.
 - Preserve CUDA/NVDEC and MPS/OpenCV paths; never silently use CPU inference.
