@@ -1,1 +1,670 @@
 # highlight-generator
+
+스포츠 경기 영상에서 하이라이트 후보를 찾아 클립으로 저장합니다.
+선수의 움직임이 두드러진 시점 앞뒤로 클립을 만들거나, 따로 기록한 서브·랠리 종료·득점 시각을 이용해 한 플레이를 묶을 수 있습니다.
+후보의 순위를 정할 때는 선수의 동작 패턴을 보고, SAM 3로 검출한 객체가 있으면 그 결과도 함께 씁니다.
+배드민턴 영상 한 편으로 후보 클립과 합본을 만드는 방법은 [빠른 시작](#빠른-시작)에 있습니다.
+
+포즈가 놓친 구간까지 찾으려면 `highlight-discover`로 OpenCV의 움직임과 포즈에 의존하지 않는 SAM 관측을 함께 살펴봅니다.
+`highlight-fusion`은 포즈와 객체 검출 결과를 원본 영상 위에 겹쳐 그리고 LLM이 후보별로 검토할 자료를 저장합니다.
+배드민턴의 서브·셔틀 착지나 축구의 득점을 기준으로 클립을 만들려면 해당 이벤트를 입력해야 합니다.
+
+독립 탐색의 모듈, 모델 호출 한도, 입출력 형식과 검증 기준은 [SPEC.md](SPEC.md)를 참고하세요.
+종목별 설계와 도입 후보 모델의 역할·Mac 검증 상태는 [종목 SPEC](docs/specs/README.md)과 [비전 모델 조사](docs/research/vision-models-2026-11-19.md)에 있습니다.
+개발 지침은 영문 [AGENTS.md](AGENTS.md)에 있습니다.
+
+## 종목별 설계
+
+아래 표는 종목별로 어떤 장면을 하이라이트 후보로 삼고, 어떤 선과 구조물을 기준으로 구장을 찾을지 정리한 후속 설계입니다.
+자동 구장 탐색, 공·셔틀 전용 추적기, 종목별 이벤트 모델은 아직 분석 경로에 연결되지 않았습니다.
+
+| 종목 | 하이라이트 후보 | 구장 탐색의 핵심 | SPEC |
+| --- | --- | --- | --- |
+| 배드민턴 | 긴 랠리, 스매시와 수비, 헤어핀·네트 공방, 런지·다이빙 | 단·복식 선과 서비스라인 간격·교차 구조, 대상 코트와 네트 | [배드민턴](docs/specs/badminton.md) |
+| 농구 | 슛·돌파·덩크, 블록·스틸, 리바운드·속공·패스 | 코트 직선·원호·3점선, 경기 중인 골대, 바닥과 림의 구분 | [농구](docs/specs/basketball.md) |
+| 축구 | 득점 전개, 슈팅·세이브, 드리블·패스·역습·세트피스 | 실제 구장 규격·페널티지역·골문, 팬·줌·장면 전환 | [축구](docs/specs/football.md) |
+
+규칙은 관측을 해석하는 데 쓰고, 보이지 않은 타구·착지·득점을 만들어내지 않습니다.
+SAM3의 독립 발견, 지정 대상의 추적, 공/셔틀 전용 관측, 구장 보정, 하이라이트 관심도 판단을 별도 역할로 둡니다.
+SAMURAI·TrackNetV3·KaliCalib·PnLCalib·T-DEED 등은 조사 후보이며 설치·Mac 실측하지 않았습니다.
+
+## 전체 처리 과정
+
+포즈로 강한 움직임을 찾을 때는 분석할 코트를 먼저 지정하고, 그 안에서 선수의 움직임이 두드러진 시점 전후를 클립으로 묶습니다.
+아래 그림은 이벤트 시각을 입력하는 방법과 SAM으로 후보를 독립적으로 찾는 방법도 함께 보여 줍니다.
+
+```mermaid
+flowchart TD
+    V["원본 영상"] --> P["프레임 샘플링: YOLO11-pose + ByteTrack"]
+    V --> CV["전체 프레임 CV 움직임"]
+    V --> DS["포즈와 무관한 SAM 주기적 탐색"]
+    CV --> DC["누락 의심 구간 SAM 확인"]
+    DS --> DR["발견 객체의 주변 프레임 확인"]
+    DC --> DR
+    P --> A["포즈 캐시 저장"]
+    A --> F["선택한 코트 안의 선수만 분석"]
+    C["검토한 코트 경계 / 선택적인 네트 위치"] --> F
+    F --> M["강한 움직임의 기준 시점 탐색"]
+    M --> X["움직임이 줄어드는 지점까지 앞뒤로 확장"]
+    F --> K["선택적인 후보 키프레임 추출"]
+    K --> S["SAM3 또는 로컬 YOLO: 객체 분석 결과 저장"]
+    E["서브 / 종료 / 득점 이벤트 입력"] --> U["랠리 또는 득점 구간 구성"]
+    X --> R["후보 순위 선정 + 개수·총길이 제한"]
+    U --> R
+    S --> R
+    R --> O["클립 + 선택적인 합본 + JSON / HTML 검토 자료"]
+    CV --> D["독립 탐색 후보와 관측 저장"]
+    DR --> D
+    D --> FO["highlight-fusion으로 원본 위에 관측 표시"]
+```
+
+| 단계 | 처리 내용 | 도구·결과 |
+| --- | --- | --- |
+| 1. 코트 설정 | 미리보기에서 분석할 코트를 골라 선수의 발 위치를 검사할 영역을 지정합니다. 네트 기둥의 바닥 위치도 지정할 수 있습니다. | `highlight-court` 미리보기, 직접 작성한 `court.json` |
+| 2. 포즈 추출 | 일부 프레임에서 CUDA/MPS로 선수 관절을 검출하고, CPU의 ByteTrack으로 선수를 연결합니다. 빠른 배드민턴 경로의 기본값은 최대 10 FPS, 입력 너비 1280 px입니다. | `highlight-pose` 또는 `highlight-detect`; `<game>_poses.npz` |
+| 3. 코트 필터링 | YOLO는 샘플링한 프레임의 화면 전체에서 선수를 찾습니다. 움직임과 동작 패턴을 분석할 때는 발이 지정 영역 안에 있는 선수만 남깁니다. | 포즈 캐시 + 코트 설정 |
+| 4. 객체 정보 저장 | `highlight-discover`는 독립 SAM 탐색·누락 확인·주변 프레임 분석을 실행합니다. 기존 `highlight-detect`는 포즈 후보 주변을 상세 분석합니다. | `sam_evidence.json` 또는 `<game>_highlights.json` |
+| 5. 후보 구간 구성 | 강한 움직임을 기준으로 앞뒤를 확장하거나, 입력된 경기 이벤트로 랠리·득점 구간을 만듭니다. | `highlight-plays` |
+| 6. 순위 선정 | 움직임 강도, 길이, 동작 패턴, 이용 가능한 SAM 증거를 반영합니다. 겹치는 움직임 구간은 제한 범위 안에서 합치고, 개수·총길이 예산에 맞춰 선택합니다. | 점수·경계 근거가 기록된 구간 |
+| 7. 출력·검토 | 선택 구간을 인코딩하고 필요하면 합본을 만듭니다. 사용자가 후보의 품질과 구간의 완결성을 확인합니다. | MP4, `<game>_plays.json`, `review.html` |
+
+`highlight-plays`는 움직임을 분석할 때 저장된 포즈를 읽으며, YOLO나 SAM을 새로 호출하지 않습니다.
+`highlight-detect` 또는 `highlight-patterns --refine-sam`으로 저장한 객체 관측이 있으면 후보 순위를 정할 때 함께 사용할 수 있습니다.
+SAM이 분석하지 않은 시점도 선수 움직임이 크면 후보가 될 수 있습니다.
+독립 탐색에서는 `highlight-discover`가 저장한 후보와 SAM 관측을 `highlight-fusion`에 넘겨 영상에서 확인합니다.
+
+| 방식 | 기준과 구간 구성 | 결과의 의미 |
+| --- | --- | --- |
+| 움직임 기반: `highlight-plays --motion-seeds` | 강한 몸·팔 움직임을 찾고, 기본 앞 12초·뒤 8초 범위에서 움직임이 줄어드는 지점을 탐색합니다. | 추정된 맥락 구간입니다. 랠리가 일부 잘리거나 움직임이 작은 좋은 플레이를 놓칠 수 있습니다. |
+| 이벤트 기반: `highlight-plays --events events.json` | 배드민턴은 서브부터 종료까지, 농구·축구는 득점과 직전 전개를 묶습니다. | 입력 이벤트에 근거한 구간입니다. 경계 검증 여부는 이벤트 출처가 결정합니다. |
+| 동작 분석: `highlight-patterns` | 준비 → 동작 → 회복의 순서를 검사합니다. 작은 스트로크·네트 플레이도 포함합니다. | 개별 동작을 검토하거나 경기 구간의 순위를 정하는 보조 자료입니다. |
+| 독립 발견: `highlight-discover` | CV·선택적 포즈의 움직임과 독립 SAM 시간 변화를 합칩니다. | 포즈가 없어도 검토 후보를 만들며, 미연결 객체의 코트 관계는 미확인입니다. |
+| 통합 관측: `highlight-fusion` | 전체 프레임의 OpenCV와 서로 다른 간격의 포즈·객체·SAM 관측을 프레임 번호와 시간으로 정렬합니다. | 전체 길이 오버레이와 후보별 LLM 근거 묶음입니다. 확정된 경기 결과를 생성하지 않습니다. |
+
+## 실행 환경
+
+- Python 3.10 이상과 [uv](https://docs.astral.sh/uv/)를 사용합니다.
+- NVIDIA 경로는 CUDA 12.8 호환 드라이버가 필요합니다. WSL2의 RTX 4060 Ti 8 GB에서 개발했으며, SAM3의 최대 VRAM 사용량은 약 3.4 GB였습니다.
+- Apple Silicon은 YOLO 포즈와 SAM3 이미지 추론에 PyTorch MPS를 사용합니다. M4 Pro에서 FP16으로 검증했습니다.
+- NVIDIA는 NVDEC로 디코딩하고 GPU에서 전처리·추론합니다. Mac은 OpenCV로 CPU 디코딩 후 샘플링한 RGB 프레임을 GPU로 보냅니다. ByteTrack은 두 경로 모두 CPU에서 실행합니다.
+- GPU 추론을 사용할 수 없을 때 CPU 추론으로 조용히 전환하지 않습니다.
+
+## 설치
+
+프로젝트 루트에서 의존성을 설치합니다.
+
+```sh
+uv sync --frozen
+```
+
+YOLO 포즈 가중치는 처음 실행할 때 `models/`로 자동 다운로드합니다.
+SAM 3로 객체까지 분석하려면 [SAM 3 모델 페이지](https://huggingface.co/facebook/sam3)에서 접근 승인을 받은 뒤 아래 명령으로 가중치를 받습니다.
+
+```sh
+uvx --from huggingface_hub hf auth login
+uvx --from huggingface_hub hf download facebook/sam3 sam3.pt --local-dir models
+```
+
+## 빠른 시작
+
+분석 명령에는 로컬 영상 파일의 경로를 넣습니다.
+YouTube에 올린 경기는 먼저 영상 파일로 내려받습니다.
+아래는 프로젝트 루트에서 `data/game.mp4`를 분석하는 예입니다.
+예를 들어 입력 파일이 `match.mp4`라면 마지막 단계에서 읽을 파일 이름도 `match_poses.npz`와 `match_highlights.json`이 됩니다.
+
+### 분석할 코트 지정
+
+```sh
+uv run highlight-court data/game.mp4 --out-dir outputs/court-preview
+```
+
+`outputs/court-preview/game_court.jpg`를 열어 내 경기가 진행되는 코트를 찾습니다.
+[코트 설정 예시](#코트-설정)에 따라 그 영역의 네 꼭짓점을 둘레 순서로 `court.json`에 적습니다.
+옆 코트가 함께 보이더라도 이후 단계는 발이 지정 영역 안에 있는 선수의 움직임만 분석합니다.
+
+### 포즈와 객체 관측 저장
+
+Mac에서는 `--device mps`, NVIDIA GPU에서는 `--device cuda:0`을 사용합니다.
+다음 명령은 일정 간격으로 포즈를 추론하고, 후보 구간에서 고른 프레임만 SAM 3로 분석합니다.
+SAM 가중치 없이 포즈만 사용하려면 이 명령에 `--detail-backend none`을 추가합니다.
+
+```sh
+uv run highlight-detect data/game.mp4 --sport badminton --device mps \
+  --court court.json --out-dir outputs/game --no-clips --no-overlay
+```
+
+### 후보 클립과 합본 확인
+
+저장한 포즈에서 강한 움직임을 찾아 앞뒤 장면을 묶고, 합계 120초 안에서 클립을 최대 5개 고릅니다.
+포즈만 추출했으면 아래 명령에서 `--sam-evidence`와 그 파일 경로를 생략합니다.
+
+```sh
+uv run highlight-plays data/game.mp4 --sport badminton --motion-seeds \
+  --poses outputs/game/game_poses.npz --court court.json \
+  --sam-evidence outputs/game/game_highlights.json \
+  --max-highlights 5 --highlight-budget 120 --out-dir outputs/motion/game --reel
+```
+
+`outputs/motion/game/review.html`에서 선택 결과를 확인합니다.
+클립이 하나 이상 선택되면 같은 폴더의 `game_plays.mp4`에서 합본을 볼 수 있습니다.
+움직임 전후의 길이나 클립 개수·총길이를 조정할 때는 마지막 명령만 다시 실행합니다.
+코트를 바꾸면 포즈 캐시는 재사용할 수 있고, 새 코트의 SAM 관측이 필요하면 `highlight-detect`를 다시 실행합니다.
+
+움직임 앞뒤의 범위는 [움직임 기반 구간 확장](#움직임-기반-구간-확장)에서 조정할 수 있습니다.
+서브부터 착지까지 한 랠리를 통째로 담으려면 [랠리와 득점 구간](#랠리와-득점-구간)의 이벤트 입력 예시를 참고하세요.
+
+## 움직임 기반 구간 확장
+
+서브·착지 검출기가 없어도 강한 움직임을 먼저 찾고 앞뒤 맥락을 붙일 수 있습니다.
+전체 코트의 선수가 모두 멈출 때까지 기다리지 않고, 각 기준 시점 주변을 제한된 범위에서 탐색합니다.
+
+```sh
+uv run highlight-plays path/to/game.mp4 --sport badminton --motion-seeds \
+  --poses outputs/game_poses.npz --court court.json \
+  --sam-evidence outputs/game_highlights.json \
+  --motion-before 12 --motion-after 8 --seed-percentile 95 \
+  --max-highlights 5 --highlight-budget 120 --out-dir outputs/motion/game --reel
+```
+
+연속된 선수 트랙에서 몸의 속도·속도 벡터 변화·어깨 기준 팔의 속도를 몸통 길이로 정규화합니다.
+잠깐 유지되는 강한 움직임이 절대 기준과 영상 내 백분위 기준을 모두 넘어야 기준점이 됩니다.
+오버헤드 자세나 완성된 스트로크 패턴은 필수 조건이 아닙니다.
+가려진 손목의 움직임과 비현실적인 추적 점프는 제외하고, 지정 코트 밖의 선수는 분석하지 않습니다.
+화면상 수직 이동도 몸 움직임에 반영되지만, 점프나 특정 샷의 확정 분류는 아닙니다.
+
+기본 확장 한도는 **앞 12초·뒤 8초**입니다. 주변 움직임이 일정 시간 줄어드는 지점을 절단 후보로 사용합니다.
+짧은 가림은 정지로 처리하지 않으며, 긴 관측 공백·탐색 한도·영상 경계는 각각의 종료 근거로 기록합니다.
+겹치는 구간은 합친 길이가 전체 한도 안에 있을 때만 병합하고, 그보다 긴 중복 후보는 약한 쪽을 억제합니다.
+최종 후보끼리는 겹치지 않습니다.
+
+구간은 추정값으로 표시하며 서브·착지·득점이나 랠리 전체를 보장하지 않습니다.
+작은 헤어핀처럼 움직임이 적은 장면은 빠질 수 있고 평범한 이동이 선택될 수도 있습니다.
+카메라 움직임 보정은 아직 없습니다. 관측된 경기 경계가 필요하면 이벤트 기반 방식을 사용합니다.
+
+## 포즈가 놓친 구간의 독립 탐색
+
+SAM3를 포즈 후보 안에서만 호출하면 포즈가 놓친 장면도 제외됩니다. `highlight-discover`는
+전체 시간축의 독립 탐색에 호출 몫을 예약하고, 움직임은 있는데 포즈가 없는 구간과 발견 객체의 주변 프레임을 추가로 확인합니다.
+포즈 캐시만 주어도 기존 움직임 분석으로 포즈 seed를 구성합니다. 포즈와 기존 후보를 모두 생략할 수도 있습니다.
+
+```sh
+uv run highlight-discover path/to/game.mp4 --sport badminton --court court.json \
+  --poses outputs/game/game_poses.npz --sam-model models/sam3.pt --device mps \
+  --max-sam-calls 90 --out-dir outputs/discovery/game
+
+# 원본 전체의 CV와 요청 계획만 점검합니다. 모델·신규 추론이 필요 없습니다.
+uv run highlight-discover path/to/game.mp4 --sport badminton --court court.json \
+  --plan-only --out-dir outputs/discovery/plan
+
+# 저장된 결과로 오버레이를 만듭니다. 포즈는 선택 입력입니다.
+uv run highlight-fusion path/to/game.mp4 --sport badminton --court court.json \
+  --candidates outputs/discovery/game/discovery.json \
+  --sam-evidence outputs/discovery/game/sam_evidence.json --out-dir outputs/fusion/discovered
+```
+
+신규 SAM 상한은 기본 90회이며 탐색 30%·누락 의심 30%·상세 분석 40%를 기본으로 예약합니다.
+예산이 작아도 양수이면 탐색을 최소 한 번 수행합니다. 탐색은 기본 5초 간격을 목표로 하지만
+슬롯이 부족하면 전체 길이에 분산하므로 실제 간격이 더 길어집니다. `--context-tiles 2`는
+코트와 상공 영역을 겹치는 두 타일로 나누고 번갈아 검사합니다. 각 타일은 별도 호출입니다.
+한 프레임의 객체 존재만으로 후보를 만들지 않고 인접 관측의 위치 변화를 확인합니다.
+정지 물체·미검출·동일 프레임의 다른 crop은 동작 근거로 쓰지 않습니다.
+
+`--candidates`로 기존 경기 구간, `--sam-evidence`로 기존 객체 관측을 더할 수 있습니다.
+기존 구간의 경계 상태를 보존하며, 새 문맥은 기본 앞 12초/뒤 8초 안에서 구성합니다.
+분석 결과는 `needs_review` 후보이고 실제 타구·완결된 랠리·득점을 뜻하지 않습니다.
+포즈와 연결되지 않은 비행 객체는 대상 코트 소속도 미확인입니다.
+
+재실행할 때 새 출력 디렉터리와 `--sam-cache outputs/discovery/game/sam-cache.jsonl`을 사용하면
+원본·모델·프롬프트·프레임·crop이 같은 이미지 추론을 재사용합니다. 캐시 적중은 신규 호출과 따로 기록합니다.
+기본 결과는 JSON과 원본 구간을 재생하는 `review.html`이며, `--export-clips`를 지정할 때만 새 클립을 인코딩합니다.
+드문 샘플링과 휴리스틱 연결의 누락·오탐은 실제 영상 라벨로 별도 검증해야 합니다. 전체 계약은 [SPEC.md](SPEC.md)를 참고하세요.
+
+## 모델 혼합 실행
+
+`highlight-discover`에서 CV·저장된 YOLO Pose·새 YOLO 객체·독립 SAM3 관측을 함께 사용합니다.
+객체 검출은 CV와 디코딩을 공유하고, 포즈가 없는 시점에도 후보를 만들 수 있습니다.
+
+```sh
+uv run highlight-discover input.mp4 --sport badminton --court court.json \
+  --poses outputs/input_poses.npz --object-model models/yolo11n.pt \
+  --object-fps 2 --max-object-calls 600 --sam-model models/sam3.pt \
+  --max-sam-calls 90 --device mps --out-dir outputs/mixed
+
+uv run highlight-fusion input.mp4 --sport badminton --court court.json \
+  --poses outputs/input_poses.npz --candidates outputs/mixed/discovery.json \
+  --sam-evidence outputs/mixed/sam_evidence.json --out-dir outputs/mixed-overlay
+```
+
+포즈가 없으면 `--poses`를 생략합니다. 일반 COCO 모델에는 셔틀 클래스가 없습니다.
+TrackNetV3 CSV와 SAMURAI의 별도 상자 내보내기는 `highlight-model-import`로 가져온 뒤
+`--model-evidence`를 반복 지정해 합칠 수 있습니다. 새 모델 자체의 설치·추론은 별도입니다.
+`model_evidence.json`은 객체 추론 없이 재사용할 수 있습니다.
+
+출처·원본 프레임·시각·신뢰도를 보존하고, 보간·예측은 직접 관측과 구분합니다.
+모델별 후보를 합집합으로 수집하며, 관심도 점수가 타구·착지·득점이나 랠리 경계를 검증하지 않습니다.
+상세 명령과 입력 계약은 [모델 혼합 SPEC](docs/specs/model-mix.md)을 참고하세요.
+
+## 여러 분석 결과 겹쳐 보기와 LLM 검토
+
+분석 주기는 역할에 따라 나눕니다. OpenCV의 저렴한 연산을 많이 실행하고, 포즈·객체 검출·SAM은 다른 간격과 예산을 사용합니다.
+코트의 선을 매번 새로 찾을 필요는 없으므로, 프레임 차이는 매 프레임 처리하되 선·카메라 이동 진단은 기본 2초마다 갱신합니다.
+
+| 레이어 | 기본 범위 | 제공하는 근거 |
+| --- | --- | --- |
+| OpenCV | 원본의 모든 프레임, 분석 너비 640 px | 선택 코트의 움직임 비율·밝기·화면 변화 후보, 주기적인 선 후보·카메라 평행 이동 진단 |
+| YOLO 포즈 | 기존 캐시 재사용; 빠른 경로는 최대 10 FPS | 코트 안 선수의 관절·발 위치·몸과 손의 움직임 |
+| YOLO 객체 | 평소 최대 2 FPS, 후보 안 최대 8 FPS, 총 2,000회 제한 | 로컬 체크포인트의 원래 클래스·박스·신뢰도와 보수적으로 연결한 관측 트랙 |
+| SAM3 | 저장된 관측 재사용 + 선택적인 추가 최대 18회 | 후보 중심과 전후의 선수 주변 객체 박스 |
+| LLM | 후보별 요약·선택 프레임 | 관심도 판단·반대 근거·미확인 항목. 검출기 신뢰도를 하이라이트 확률로 해석하지 않음 |
+
+종목별 프로필은 배드민턴의 라켓·셔틀, 농구의 공·골대, 축구의 공·골문 질의·클래스 필터를 지정합니다.
+축구 프로필은 녹색 표면 비율도 기록하지만, 자동 필드 선택이나 골 판정은 아닙니다.
+프로필과 검출기의 학습 클래스는 별개입니다. 일반 [COCO 클래스](https://docs.ultralytics.com/datasets/detect/coco/)에는
+`sports ball`·`tennis racket`이 있지만 셔틀콕은 없습니다. 이를 배드민턴 클래스로 바꿔 부르지 않습니다.
+전용 셔틀·라켓 모델을 준비했다면 `--object-model`로 지정하세요. 다음 예시는 로컬 COCO 가중치를 사용하며 지원하지 않는 클래스를 결과에 명시합니다.
+
+```sh
+uv run highlight-fusion path/to/game.mp4 --sport badminton \
+  --poses outputs/game/game_poses.npz --court court.json \
+  --candidates outputs/motion/game/game_plays.json \
+  --sam-evidence outputs/game/game_highlights.json \
+  --object-model models/yolo11n.pt --object-fps 2 --object-peak-fps 8 \
+  --max-object-calls 2000 --refine-sam --max-sam-calls 18 \
+  --top-candidates 6 --device mps --out-dir outputs/fusion/game
+```
+
+`--object-model`과 `--refine-sam`은 선택 사항입니다. 모델이 없는 상태와 검출 실패를 구분합니다.
+이전 통합 분석의 `manifest.json`을 `--object-evidence`로 주면 객체 검출도 재실행하지 않습니다.
+원본·종목·코트가 같은지 확인하고, 지원 클래스와 관측 주기는 원래 결과의 출처를 함께 참고합니다.
+`--no-video`는 전체 영상·클립 인코딩을 생략하고 관측 데이터와 근거 프레임을 생성합니다.
+모니터링하려면 동일한 인자를 `uv run python scripts/benchmark_fusion.py ... --monitor-mac`에 전달합니다.
+
+오버레이에는 초록색 코트 경계·노란 선 후보·선수 골격·주황색 YOLO 객체·분홍색 SAM 객체를 함께 표시합니다.
+포즈는 과거의 최대 0.2초 관측, 객체는 최대 0.3초, SAM은 최대 0.12초 관측만 표시하고 실제 관측 시점과 경과 시간을 적습니다.
+샘플 사이를 새 검출처럼 보간하지 않습니다. 발의 코트 소속은 엄격히 검사하지만, 공중 객체는 바닥 경계 밖에 보일 수 있어
+코트 안 선수와의 근접성도 기록합니다. 2D 위치만으로 공중 객체의 경기 코트나 3D 높이를 확정하지 않습니다.
+현재 SAM 통합 결과는 객체 박스이며 분할 마스크는 저장하지 않습니다.
+짧은 시간 간격의 SAM 이미지에서 위치가 거의 같은 셔틀 후보는 정지 물체 가능성으로 표시해 박스 지원에서 제외합니다.
+원시 박스와 제외 사유는 남겨 LLM의 반대 근거로 전달합니다. 이 표시만으로 여분 셔틀이나 경기 중단을 확정하지 않습니다.
+
+| 결과 | 내용 |
+| --- | --- |
+| `full_overlay.mp4` | 원본 전체 길이의 분석 오버레이, 기본 30 FPS·너비 1280 px |
+| `C01_overlay.mp4` 등, `candidate_overlays.mp4` | 후보별 오버레이와 검토용 합본 |
+| `opencv.jsonl`, `geometry_observations.json` | 프레임별 저비용 신호와 주기적인 선·카메라 진단 |
+| `objects.jsonl`, `sam_observations.json` | 실제 검출 시점·원래 클래스·좌표·신뢰도·선수와의 관계·관측 ID |
+| `sam_evidence.json` | 저장된 SAM 출처와 추가 관측을 연결한 재사용용 보고서 |
+| `packets/C01.json`, `packets.jsonl` | 후보별 관측 범위·선수 요약·객체 트랙·정지 가능성·참조 이미지·미확인 항목 |
+| `llm_review_prompt.md`, `review_schema.json` | Codex·Claude Code 등 에이전트가 읽을 영문 검토 지침과 출력 형식 |
+| `manifest.json`, `review.html` | 관측 범위·지원 클래스·새 호출 수·시간 기록과 검토 페이지 |
+
+LLM에는 전체 원시 JSONL을 한 번에 넣기보다 `manifest.json`과 관련 후보의 packet·세 장의 프레임부터 제공합니다.
+좌표만으로 구분하기 어려운 셔틀 줍기·대기·가림은 자세와 전후 이미지도 함께 봅니다.
+필요할 때 원시 관측이나 오버레이로 내려가고, `highlight_candidate`·`reject`·`needs_review` 중 하나를
+실제 근거 ID·반대 근거·미확인 항목과 함께 반환하도록 합니다.
+
+명령 자체는 외부 LLM API를 호출하거나 영상을 업로드하지 않습니다.
+에이전트가 만든 JSON 판정을 다음 명령으로 적용하면 기존 오버레이 클립에서 승인한 후보만 합칩니다.
+검출 모델은 다시 실행하지 않으며, 없는 후보·근거 ID 또는 LLM의 새 경계 검증 주장은 거부합니다.
+판정의 `boundary_verified: false`는 LLM이 새로 검증한 경기 경계가 없다는 뜻입니다. 입력의 기존 `boundary_status`는 그대로 유지합니다.
+
+```sh
+uv run highlight-fusion-review outputs/fusion/game \
+  --review decisions.json --reviewer codex
+```
+
+결과는 `reviewed.html`, `reviewed_selection.json`과 선택된 후보가 있을 때의 `reviewed_highlights.mp4`입니다.
+LLM의 관심도 평가는 서브·착지·득점의 검증과 별개이며, 실제 선호를 맞추려면 사용자 라벨로 평가해야 합니다.
+셔틀의 연속 궤적·접촉·착지는 전용 검출·추적 모델을 추가해야 합니다.
+
+전체 영상 오버레이를 처음 만들 때와 저장된 관측으로 다시 만들 때의 처리 시간은 [통합 분석·오버레이 벤치마크](benchmark/fusion-overlay.md)에서 비교할 수 있습니다.
+
+## 랠리와 득점 구간
+
+| 종목 | 후보 단위 | 필요한 이벤트 |
+| --- | --- | --- |
+| 배드민턴 | 헤어핀·드라이브·오버헤드를 포함하는 한 랠리 | 서브부터 착지·아웃·네트 폴트·폴트·렛·포인트 종료까지 |
+| 농구 | 득점과 직전 공격 전개 | 골 성공, 선택적인 공격·소유권 시작 |
+| 축구 | 득점과 직전 공격 전개 | 골, 선택적인 공격 시작 |
+
+```sh
+uv run highlight-plays path/to/game.mp4 --sport badminton \
+  --events events.json --poses outputs/game_poses.npz --court court.json \
+  --out-dir outputs/plays/game --reel
+```
+
+`events.json`은 이벤트 검출기나 사람이 검토한 주석으로 준비합니다.
+다음은 수동 검토 입력의 형식 예시이며 시간은 설명용입니다.
+
+```json
+{
+  "video": "game.mp4",
+  "sport": "badminton",
+  "court_id": "main",
+  "source": "manual_review",
+  "events": [
+    {"time_s": 12.4, "kind": "serve", "verified": true},
+    {"time_s": 28.1, "kind": "shuttle_landed", "verified": true},
+    {"time_s": 35.0, "kind": "serve", "verified": true},
+    {"time_s": 48.2, "kind": "fault", "verified": true}
+  ]
+}
+```
+
+파일 안의 영상 경로는 이벤트 파일 위치를 기준으로 해석합니다.
+`court_id`가 다른 이벤트는 제외하며, 포즈를 함께 사용하면 코트 경계도 필요합니다.
+추적 끊김·가림·네트 터치 동작만으로 랠리를 끝내지 않습니다.
+앞뒤 여유 시간을 붙여도 서로 다른 랠리를 합치지 않고, 시간 예산이 부족하면 랠리 전체를 건너뜁니다.
+랠리 중간을 잘라 예산에 맞추지는 않습니다.
+
+`--verified-only`는 시작·종료 이벤트가 모두 검증된 구간만 고릅니다.
+관측하지 못한 경계는 미확인 상태로 유지하며, 중요도 점수와 경계 검증 여부를 분리합니다.
+`--sam-evidence`를 포즈와 함께 주면 저장된 객체 증거로 동작 순위를 보조하지만 경계를 변경하거나 검증하지는 않습니다.
+
+농구의 `highlight-detect`는 SAM3 림 통과 규칙으로 추정한 `basket_made`와 `play_candidates`를 저장합니다.
+해당 JSON을 `highlight-plays --sport basketball --events ...`에 전달할 수 있습니다.
+이 결과는 점수판으로 확인한 득점이 아닙니다. 축구는 외부 `goal` 이벤트가 필요합니다.
+
+배드민턴의 자동 경계를 위해서는 연속 셔틀 추적과 접촉·종료 판별이 추가로 필요합니다.
+현재의 일부 SAM 프레임만으로는 전체 비행 경로를 확인할 수 없습니다.
+
+### 포즈 활동 구간 진단
+
+```sh
+uv run highlight-plays path/to/game.mp4 --sport badminton \
+  --estimate-from-poses --poses outputs/game_poses.npz --court court.json \
+  --out-dir outputs/activity-proposals --no-clips
+```
+
+이 모드는 활동·정지에 근거한 미검증 구간을 출력합니다.
+정지나 셔틀 미검출을 착지로 간주하지 않습니다. 실제 영상에서는 여러 랠리가 긴 활동 구간으로 묶일 수 있으므로
+랠리 자동 추출 결과로 사용하지 않습니다. 세 영상에서 확인한 한계는 [측정 기록](benchmark/rallies-motion.md)에 남겼습니다.
+
+## 저장된 포즈·SAM으로 동작 분석
+
+```sh
+uv run highlight-patterns path/to/game.mp4 \
+  --poses outputs/game_poses.npz --sam-evidence outputs/game_highlights.json \
+  --court court.json --out-dir outputs/patterns/game --reel
+```
+
+YOLO를 다시 실행하지 않고 연속 트랙에서 준비·동작·회복 순서를 검사합니다.
+손목은 몸통 기준 상대 움직임으로 계산해 몸 전체의 이동을 스윙으로 오인하는 일을 줄입니다.
+
+| 패턴 | 검사하는 순서 |
+| --- | --- |
+| `overhead_swing` | 손목 올림 → 빠른 팔 움직임 → 팔로스루 |
+| `compact_stroke` | 작은 손·라켓 움직임 → 안정 또는 복귀; 팔을 높이 들 필요 없음 |
+| `net_touch_candidate` | 설정한 네트 가까이에서의 작은 스트로크; 네트 플레이 후보 |
+| `low_reach_recovery` | 낮은 손 위치와 굽히거나 벌린 다리 → 회복 |
+| `repeated_action_burst` | 여러 트랙에서 긴 정지 없이 가까운 시간에 발생한 세 번 이상의 동작 |
+
+학습한 하이라이트 선호 모델이 아니라 직접 작성한 시간 순서 규칙입니다.
+낮게 뻗는 동작은 셔틀 줍기일 수 있어 기본 클립 선택에서는 제외하고, `--include-low-reach`로 포함할 수 있습니다.
+작은 스트로크와 네트 동작은 오버헤드 없이도 묶음 후보를 만들 수 있습니다.
+코트 필터링을 먼저 적용하며, 네트 동작만으로 헤어핀·스매시·타구·위닝샷·완전한 랠리를 확정하지 않습니다.
+[배드민턴 타구 시점 검출 연구](https://arxiv.org/abs/2306.10293)도 시간 순서 문제를 다루지만, 이 구현은 해당 학습 모델을 사용하지 않습니다.
+
+SAM은 손 근처의 크기가 타당한 라켓이나 움직이는 작은 객체를 제한적인 순위 보조 정보로 사용합니다.
+바닥의 셔틀·정지한 객체·너무 큰 객체·멀리 있는 라켓은 제외합니다.
+분석하지 않은 시점은 미확인 상태로 두며, 객체 미검출을 실패한 동작으로 해석하지 않습니다.
+원본 프레임·좌표·영상 크기로 연결하므로 서로 다른 포즈 추출 설정의 트랙 ID가 같을 필요는 없습니다.
+저장된 분석의 출처를 따라 추가 SAM 프레임도 재사용하고, 다른 선수를 자른 영역은 분석 범위로 인정하지 않습니다.
+
+추가 객체 분석이 필요한 동작만 제한적으로 확인하려면 다음과 같이 실행합니다.
+
+```sh
+uv run highlight-patterns path/to/game.mp4 \
+  --poses outputs/game_poses.npz --sam-evidence outputs/game_highlights.json \
+  --court court.json --out-dir outputs/patterns/game --refine-sam --device mps \
+  --max-sam-calls 15 --max-highlights 5 --highlight-budget 40 --reel
+```
+
+`--court`는 저장된 코트 경계를 덮어씁니다. 동작 분석에는 경계가 필요하며 발 위치 필터의 여유 폭은 0입니다.
+SAM 입력은 생략할 수 있고, `--no-clips --no-previews`는 미디어 출력 없이 데이터만 분석합니다.
+반복 패턴의 빈도와 개인이 선호하는 하이라이트는 별개입니다. 선호를 학습하려면 좋은 장면과 평범한 장면의 라벨이 필요합니다.
+
+## 코트 설정
+
+```sh
+# YOLO·SAM과 별개로 실행하는 CPU OpenCV 진단입니다.
+uv run highlight-court path/to/game.mp4 --out-dir outputs/court-preview
+```
+
+영상 초반 프레임의 중앙값 영상에서 Canny와 [확률적 허프 변환](https://docs.opencv.org/4.x/d9/db0/tutorial_hough_lines.html)으로 긴 선을 찾습니다.
+벽·천장 경계를 줄이기 위해 화면 아래쪽 60%를 탐색합니다.
+원시 선 후보에는 다른 종목의 선·바닥 무늬·옆 코트가 섞입니다. 기본 영상에는 표시하지 않으며,
+`--show-line-candidates`를 켜면 노란색 진단 선으로 볼 수 있습니다 (`highlight-court`, `highlight-fusion`).
+고정된 실내 카메라를 가정하며 분석할 코트를 자동으로 선택하지 않습니다.
+
+선수 필터용 분석 영역의 네 꼭짓점을 둘레 순서로 지정하세요. 이 영역만으로 실제 코트 선을 보정하지는 않습니다.
+다음 좌표는 예시이므로 실제 영상에 맞춰 수정해야 합니다.
+
+```json
+{"normalized": true, "polygon": [[0.2, 0.45], [0.8, 0.45], [0.95, 0.95], [0.05, 0.95]], "net": [[0.3, 0.6], [0.85, 0.65]]}
+```
+
+```sh
+uv run highlight-detect path/to/game.mp4 --sport badminton --device mps --court court.json
+```
+
+`normalized: true`이면 좌표는 영상 크기에 대한 비율이고, 생략하면 원본 픽셀 좌표입니다.
+회색 점선은 지정한 분석 영역입니다. 코트 교차점 보정이 없으면 `UNCALIBRATED`로 표시합니다.
+파란 점선 `net`은 **두 네트 기둥의 바닥 위치**를 이은 추정 선이며 실제 바닥 표시선과 구분합니다.
+네트의 위쪽 테이프가 아니라 코트 바닥 기준 위치를 지정해야 전위의 작은 동작을 구분하는 데 쓸 수 있습니다.
+
+발이 영역 안에 있는 선수만 후보 분석에 반영합니다. 코트 제한은 불필요한 후보와 상세 모델 호출을 줄이지만
+전체 프레임을 처리하는 초기 YOLO 추론 비용을 줄이지는 않습니다.
+포즈 캐시는 원본·체크포인트 식별 정보, stride, 입력 너비, confidence가 일치할 때 재사용합니다.
+코트나 순위 설정만 바꾸면 포즈를 다시 추출할 필요가 없습니다.
+
+실제 배드민턴 선을 겹치려면 같은 파일의 `calibration`에 **선택한 코트 바닥 교차점**을 지정합니다.
+`court_m`은 [BWF Diagram A](https://badminton.dk/wp-content/uploads/2025/11/Section-4.1-Laws-of-Badminton-26-April-2025-V5.0-1-.pdf)의
+복식 코트 한쪽 뒤 모서리를 `[0, 0]`으로 한 미터 좌표입니다. 가로 6.1, 세로 13.4이며 네트의 바닥 기준은 세로 6.7입니다.
+`image`는 위의 `normalized` 설정을 따릅니다. 아래는 `calibration` 값의 예시이며 이 영상의 측정값이 아닙니다.
+
+```json
+{
+  "sport": "badminton",
+  "reviewed": false,
+  "landmarks": [
+    {"court_m": [0, 4.72], "image": [0.35, 0.55]},
+    {"court_m": [6.1, 4.72], "image": [0.75, 0.55]},
+    {"court_m": [6.1, 8.68], "image": [0.85, 0.8]},
+    {"court_m": [0, 8.68], "image": [0.25, 0.8]}
+  ]
+}
+```
+
+가려지지 않은 교차점 네 개 이상으로 호모그래피를 구해 외곽·단식 사이드라인·서비스라인을 투영합니다.
+코트 모서리가 화면 밖에 있어도 보이는 서비스라인 교차점을 쓸 수 있습니다. 네트 상단이나 이동식 기둥 받침은 바닥 교차점이 아닙니다.
+청록 점선은 미검토 템플릿이며, 실제 선과 여러 시점에서 비교한 뒤 `reviewed: true`로 바꾸면 실선으로 표시합니다.
+`check_landmarks`에 같은 형식의 별도 교차점을 넣으면 보정에 쓰지 않은 점에서도 오차를 검사합니다.
+네 점에서 오차가 작다는 사실만으로 올바른 코트를 골랐다고 판단하지 않습니다.
+이 보정은 표시용이고 `polygon`의 선수 필터는 별개입니다. 영역을 변경하면 후보를 다시 분석하고, 기존 객체 관측의 코트 설정도 맞춰야 합니다.
+
+## 빠른 배드민턴 분석과 객체 검출
+
+```sh
+uv run highlight-detect path/to/game.mp4 --sport badminton --device mps \
+  --sam-model models/sam3.pt
+
+# SAM과 체크포인트 없이 포즈 후보만 추출합니다.
+uv run highlight-detect path/to/game.mp4 --sport badminton --device mps \
+  --detail-backend none
+```
+
+기본값은 YOLO11s-pose, 최대 10 FPS, 입력 너비 1280 px입니다.
+선수의 오버헤드·손목·몸 움직임을 점수화하고 앞뒤 3초를 붙여 겹치지 않는 후보를 고릅니다.
+영상당 최대 30개·총 120초이며, 시간대별 강한 후보를 우선 확보해 초반 구간이 예산을 독점하지 않게 합니다.
+단순히 팔을 든 채 서 있는 장면만으로는 후보가 되지 않습니다.
+
+SAM3는 선택된 시점당 기본 세 프레임, 영상당 최대 90회 호출합니다.
+선수 주변을 확장해 자른 이미지에서 `badminton racket`과 `shuttlecock`을 한 번에 질의합니다.
+객체 미검출만으로 포즈 후보를 버리지 않습니다. 일반 YOLO 포즈 가중치는 셔틀을 검출하지 않습니다.
+
+먼 선수의 포즈가 누락되면 해상도나 분석 예산을 조절해 비교할 수 있습니다.
+
+```sh
+uv run highlight-detect path/to/game.mp4 --sport badminton --device mps \
+  --pose-fps 10 --input-width 1920 --max-highlights 15 \
+  --highlight-budget 90 --detail-keyframes 3 --max-detail-calls 45
+```
+
+상세 분석에는 직접 준비한 YOLO 검출·분할 체크포인트도 사용할 수 있습니다.
+
+```sh
+uv run highlight-detect path/to/game.mp4 --sport badminton --device mps \
+  --detail-backend yolo --object-model models/badminton-objects.pt
+```
+
+전용 셔틀 검출 모델은 포함되어 있지 않습니다. 체크포인트의 클래스 이름을 그대로 사용하며
+COCO의 `sports ball`이나 `tennis racket`을 배드민턴 클래스로 바꾸어 해석하지 않습니다.
+동일한 키프레임 호출 예산을 적용합니다.
+
+추가 검토 대상은 [YOLOE](https://docs.ultralytics.com/models/yoloe/)의 텍스트·시각 프롬프트 객체 검출과
+[TrackNetV3](https://github.com/qaz812345/TrackNetV3)의 시간 순서 기반 셔틀 추적입니다.
+둘 다 이 구현의 작은 셔틀 정확도·Mac 처리량 검증이 완료된 상태는 아니며, TrackNetV3는 아직 연동되지 않았습니다.
+
+## 농구·축구 분석 경로
+
+```sh
+uv run highlight-detect path/to/video.mp4 --sport basketball
+uv run highlight-detect path/to/video.mp4 --sport football
+uv run highlight-pose path/to/video.mp4 --device mps --no-overlay
+uv run highlight-detect path/to/video.mp4 --sport basketball --device mps --sam-model models/sam3.pt
+```
+
+이 경로의 기본 포즈 설정은 입력 너비 1920 px, 세 프레임마다 한 번입니다.
+농구는 머리보다 손목이 몸통 길이의 0.3 이상 높은 `arms_up`, 축구는 양 발목 높이 차이가 몸통 길이의 0.6 이상인
+`foot_up`을 단서로 씁니다. 가까운 활성 프레임을 묶고 앞 1.5초·뒤 2초를 붙입니다.
+
+농구 SAM3는 고정 카메라와 하나의 골대를 가정합니다.
+골대를 찾은 후 림 주변 644 px 영역에서 두 프레임마다 공을 분석하고, 위치를 림 너비로 정규화합니다.
+공이 림 중앙 부근 높이를 통과해 아래로 계속 내려가면 `made`, 림 위로 올라갔지만 통과하지 않으면 `miss`,
+골대 주변에서 슛을 관측하지 못하면 `noshot`으로 분류합니다. `noshot`은 클립을 만들지 않습니다.
+
+축구에는 아직 SAM 득점 판정 단계가 없어 포즈 후보를 클립으로 만듭니다.
+달리기·차기 자세만으로 골을 생성하지 않으며, 득점 중심 구간을 만들려면 외부 `goal` 이벤트가 필요합니다.
+
+## 출력과 검토
+
+기본 출력 위치는 명령별 `--out-dir`로 바꿀 수 있습니다. 자세한 옵션은 각 명령의 `--help`로 확인합니다.
+
+| 명령 | 주요 결과 |
+| --- | --- |
+| `highlight-pose` | 박스·트랙 ID·17개 관절을 담은 `<game>_poses.npz`, 선택적인 `<game>_pose.mp4` 포즈 영상 |
+| `highlight-detect` | `<game>_highlights.json`, 포즈 캐시, 후보 클립. 배드민턴은 코트 JSON·미리보기·객체 JPEG, 농구는 골대·공 궤적·판정 오버레이도 출력 |
+| `highlight-plays` | `<game>_plays.json`, 후보별 H.264 클립, `review.html`, 선택적인 `<game>_plays.mp4` 합본 |
+| `highlight-patterns` | `<game>_patterns.json`, `patterns.csv`, 동작 JPEG, `review.html`, H.264 클립·선택적인 합본 |
+
+JSON에는 시각·점수·경계 근거·설정·객체 정보·모델 호출 수·단계별 소요 시간을 기록합니다.
+`highlight-detect` 클립은 스트림 복사이므로 앞 키프레임부터 시작할 수 있습니다. iPhone 영상에서는 약 1초 차이가 날 수 있습니다.
+`highlight-plays`와 `highlight-patterns`의 검토 클립은 재인코딩해 지정 구간을 자릅니다. 이 작업은 CPU 시간을 사용합니다.
+
+`--no-clips`는 클립 생성을 생략합니다. 포즈·검출 경로의 `--no-overlay`는 포즈 영상·상세 JPEG 또는 오버레이를 생략합니다.
+동작 분석의 JPEG는 `--no-previews`로 생략합니다. 검토 클립은 16:9 입력 기준 720p30 H.264이며 오디오가 있으면 AAC로 인코딩합니다.
+
+## 벤치마크와 Mac 성능 추적
+
+[벤치마크 목록](benchmark/README.md)에서 [YOLO·SAM 추론](benchmark/inference.md), [동작 패턴](benchmark/action-patterns.md),
+[랠리 경계·움직임](benchmark/rallies-motion.md), [통합 분석·오버레이](benchmark/fusion-overlay.md)의 측정 조건과 결과를 확인할 수 있습니다.
+새로 측정하면 같은 작업의 문서에 영상별 소요 시간, Mac 자원 사용량과 검증 결과를 추가합니다.
+
+모델과 원본 영상을 미리 내려받은 뒤, 새로 추론하는 시간, 캐시를 읽어 후보를 고르는 시간, 클립과 합본을 출력하는 시간을 구분해 기록합니다.
+Windows와 비교할 때는 같은 원본 영상, 모델 가중치, 입력 해상도, 추론할 프레임 간격(stride)을 사용합니다.
+재생 길이와 stride가 같으면 60 FPS 영상에서 추론하는 프레임 수는 30 FPS 영상의 약 두 배입니다.
+
+### 새 추론 측정
+
+```sh
+# 포즈만 측정합니다. 새 출력 폴더를 사용해 캐시 재사용을 막습니다.
+uv run python scripts/benchmark_pose.py data/video1.mp4 data/video2.mp4 data/video3.mp4 \
+  --out-dir outputs/macbook/pose-run --device mps --monitor-mac
+
+# 빠른 배드민턴 경로의 새 포즈 + 제한된 객체 분석을 측정합니다.
+uv run python scripts/benchmark_pose.py path/to/game.mp4 --pipeline badminton \
+  --device mps --monitor-mac --out-dir outputs/macbook/fast-run
+
+# 농구의 포즈 + SAM 호환성은 짧은 영상에서 먼저 확인합니다.
+uv run python scripts/benchmark_pose.py data/short-clip.mp4 \
+  --pipeline combined --sport basketball --sam-model models/sam3.pt \
+  --device mps --monitor-mac --out-dir outputs/macbook/combined-smoke
+```
+
+포즈 측정은 프로세스·모델 시작, 디코딩·GPU 업로드, 추론, CPU 추적, 캐시 저장을 포함하고 오버레이는 생략합니다.
+기본 설정은 YOLO11s-pose, 너비 1920 px, FP16, 세 프레임마다 한 번입니다.
+배드민턴 경로는 입력 너비 1280 px로 초당 최대 10프레임에서 포즈를 추론합니다.
+`combined`는 농구 슛 규칙으로 후보를 고른 뒤 SAM을 실행합니다.
+이 경로에 배드민턴 영상을 넣어 얻은 수치로는 모델이 함께 동작하는지와 처리 속도를 확인할 수 있습니다.
+배드민턴과 `combined` 벤치마크는 클립과 오버레이를 출력하기 전까지 측정합니다.
+SAM을 사용하는 실행은 가중치 파일이 없으면 포즈를 추출하기 전에 중단합니다.
+
+`benchmark.json`에는 실행 시간·처리량·버전·설정·단계별 시간·부모 프로세스의 최대 RSS를 저장합니다.
+영상별 로그와 포즈 캐시도 생성합니다.
+후보의 정확도를 비교하려면 같은 영상에서 정답으로 표시한 구간과 대조해야 합니다.
+
+### 캐시를 재사용한 후보 추출 측정
+
+예를 들어 `game1.mp4`의 포즈 캐시는 `<pose-root>/game1/game1_poses.npz`에 둡니다.
+SAM 관측은 `<sam-root>/game1/game1_patterns.json`에서 읽고, 그 파일이 없으면 같은 폴더의 `game1_highlights.json`에서 읽습니다.
+코트 파일은 `<court-root>/<영상 이름>.json`입니다.
+
+```sh
+# 움직임 기준 확장 + 클립·합본 출력. 새 YOLO·SAM 추론은 실행하지 않습니다.
+uv run python scripts/benchmark_patterns.py data/game1.mp4 data/game2.mp4 \
+  --pose-root outputs/pose-cache --sam-root outputs/sam-cache \
+  --court-root outputs/courts --out-dir outputs/motion-run \
+  --motion-seeds --max-highlights 5 --highlight-budget 120 --reel --monitor-mac
+
+# 동작 분석 + 제한된 추가 SAM 분석. 새 SAM 호출은 별도로 기록합니다.
+uv run python scripts/benchmark_patterns.py data/game1.mp4 data/game2.mp4 \
+  --pose-root outputs/pose-cache --sam-root outputs/sam-cache \
+  --court-root outputs/courts --out-dir outputs/pattern-run \
+  --refine-sam --reel --monitor-mac
+```
+
+포즈와 SAM 캐시를 준비한 뒤부터 시간을 재므로 후보 선택과 요청한 클립·합본 출력 시간이 포함됩니다.
+동작 패턴 분석은 미리보기 JPEG도 출력합니다.
+`--motion-seeds`는 지정한 코트 안에서 강한 움직임을 찾으므로 `--court-root`가 필요합니다.
+이 방식은 캐시에 있는 SAM 관측을 사용하며 `--refine-sam`과 함께 실행할 수 없습니다.
+
+### 성능 그래프
+
+`--monitor-mac`은 실행 중 Mac의 CPU·GPU 사용률, 메모리와 스왑 사용량, 열압력 상태를 기록합니다.
+별도 터미널에서 수동으로 모니터를 시작할 수도 있습니다.
+
+```sh
+uv run python scripts/monitor_mac.py outputs/macbook/pose-run
+uv run python scripts/plot_mac_benchmark.py outputs/macbook/pose-run
+```
+
+2초마다 측정하고 벤치마크 완료 후 15초의 대기 구간까지 기록합니다.
+그래프는 PNG로, 시간별 측정값은 CSV로 저장합니다.
+CPU·GPU 사용률에는 다른 앱의 사용량도 포함되며 GPU는 시스템 RAM을 공유합니다.
+최대 RSS는 분석 프로세스가 점유한 RAM의 최댓값입니다.
+여기에는 FFmpeg 자식 프로세스의 메모리가 포함되지 않으며, GPU 전체 메모리 사용량은 별도 지표로 확인합니다.
+열압력은 macOS가 발열 부담을 `nominal`, `fair` 등의 상태로 표시한 값입니다.
+
+## 검증
+
+GPU 추론 없이 동작 규칙을 확인하는 테스트입니다.
+
+```sh
+uv run python -m unittest discover -s tests -v
+```
+
+개발 시 읽을 파일과 핵심 규칙은 [AGENTS.md](AGENTS.md)를 참고하세요.
+
+## 현재 한계
+
+- 카메라 움직임을 보정하지 않으며, 농구는 고정 카메라와 한 개의 골대를 가정합니다.
+- 여러 코트가 보이는 영상은 명시적인 경계 설정이 필요합니다. 제안된 영역 안에 있다는 사실만으로 실제 경기 코트를 올바르게 구분했다고 보장할 수는 없습니다.
+- 작은 셔틀의 연속 궤적·접촉·착지 판별은 미구현입니다. 포즈나 드문 객체 관측으로 위닝샷·완전한 랠리를 확정하지 않습니다.
+- 움직임 기반 방식은 작은 기술 동작을 놓치거나 일반적인 이동을 선택할 수 있습니다.
+- 농구·축구의 초기 자세 단서와 이후의 움직임·동작 규칙은 정확도 평가가 더 필요합니다.
+
+## 이전 코드
+
+`detector/`와 `videos/`는 2019년 경기 중계 하이라이트 CNN 분류 실험입니다.
+별도의 `requirements.txt`를 사용하며 현재 `src/highlight/` 파이프라인과 코드를 공유하지 않습니다.
