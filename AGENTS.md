@@ -2,8 +2,8 @@
 
 Keep this file concise and English. Keep user-facing documentation in Korean in
 `README.md`. Read relevant modules or README sections; prefer benchmark summaries
-over generated logs and media. Append results to the category Markdown files in
-`benchmark/` and link the compact JSON records in `benchmark/data/`.
+over generated logs and media. Record benchmark inputs, settings, timings, Mac
+metrics and validation in the matching `benchmark/*.md`. Keep run logs in `outputs/`.
 `SPEC.md` documents implemented discovery. `docs/specs/` describes proposed sport
 engines; `docs/research/` records model research, not integration or Mac results.
 

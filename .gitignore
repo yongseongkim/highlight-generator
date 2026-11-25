@@ -17,6 +17,3 @@ models/*.pt
 models/.cache/
 outputs/
 data/
-!benchmark/data/
-benchmark/data/*
-!benchmark/data/*.json

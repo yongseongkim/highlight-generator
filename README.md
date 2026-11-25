@@ -542,6 +542,7 @@ JSON에는 시각·점수·경계 근거·설정·객체 정보·모델 호출 �
 
 [벤치마크 목록](benchmark/README.md)에서 [YOLO·SAM 추론](benchmark/inference.md), [동작 패턴](benchmark/action-patterns.md),
 [랠리 경계·움직임](benchmark/rallies-motion.md), [통합 분석·오버레이](benchmark/fusion-overlay.md)의 측정 조건과 결과를 확인할 수 있습니다.
+새로 측정하면 같은 작업의 문서에 영상별 소요 시간, Mac 자원 사용량과 검증 결과를 추가합니다.
 
 모델·원본 영상을 미리 내려받고 **새 추론 시간과 캐시 재사용·미디어 출력 시간을 구분**해 측정합니다.
 Windows와 비교할 때는 동일한 원본, 가중치, 해상도, stride를 사용하세요.
@@ -619,7 +620,6 @@ GPU 추론 없이 동작 규칙을 확인하는 테스트입니다.
 uv run python -m unittest discover -s tests -v
 ```
 
-측정 요약은 작업별 벤치마크 문서에 추가하고, 근거가 되는 JSON은 `benchmark/data/`에 보관합니다.
 개발 시 읽을 파일과 핵심 규칙은 [AGENTS.md](AGENTS.md)를 참고하세요.
 
 ## 현재 한계
