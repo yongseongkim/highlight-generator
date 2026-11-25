@@ -1,21 +1,22 @@
 # highlight-generator
 
-직접 촬영한 스포츠 영상에서 하이라이트 후보를 찾고 클립으로 추출합니다.
-강한 움직임을 중심으로 앞뒤 구간을 확장하거나, 서브·랠리 종료·득점 이벤트로 경기 구간을 구성합니다.
-포즈 패턴과 선택적인 SAM3 객체 분석 결과는 후보의 순위를 정하는 데 사용합니다.
-`highlight-discover`는 포즈 후보와 무관한 SAM 탐색과 CV 관측을 더해 누락된 장면을 검토 후보로 찾습니다.
-`highlight-fusion`은 OpenCV·포즈·객체 검출·SAM을 공통 시간축에 겹쳐 보여 주고, LLM 검토용 근거 묶음을 출력합니다.
+스포츠 경기 영상에서 하이라이트 후보를 찾아 클립으로 저장합니다.
+선수의 움직임이 두드러진 시점 앞뒤로 클립을 만들거나, 따로 기록한 서브·랠리 종료·득점 시각을 이용해 한 플레이를 묶을 수 있습니다.
+후보의 순위를 정할 때는 선수의 동작 패턴을 보고, SAM 3로 검출한 객체가 있으면 그 결과도 함께 씁니다.
+배드민턴 영상 한 편으로 후보 클립과 합본을 만드는 방법은 [빠른 시작](#빠른-시작)에 있습니다.
 
-현재 결과는 검토용 후보입니다. 배드민턴 서브·착지와 축구 골을 자동으로 검출하는 모델은 아직 연동되지 않았습니다.
-에이전트용 개발 지침은 간결한 영문 [AGENTS.md](AGENTS.md)에 정리합니다.
-독립 탐색의 모듈·예산·데이터 계약과 검증 기준은 [SPEC.md](SPEC.md)에 정리합니다.
-종목별 하이라이트·구장 탐색 설계는 [종목 SPEC](docs/specs/README.md), 도입할 모델의 역할·Mac 검증 상태는
-[비전 모델 조사](docs/research/vision-models-2026-11-19.md)에 정리합니다.
+포즈가 놓친 구간까지 찾으려면 `highlight-discover`로 OpenCV의 움직임과 포즈에 의존하지 않는 SAM 관측을 함께 살펴봅니다.
+`highlight-fusion`은 포즈와 객체 검출 결과를 원본 영상 위에 겹쳐 그리고 LLM이 후보별로 검토할 자료를 저장합니다.
+배드민턴의 서브·셔틀 착지나 축구의 득점을 기준으로 클립을 만들려면 해당 이벤트를 입력해야 합니다.
+
+독립 탐색의 모듈, 모델 호출 한도, 입출력 형식과 검증 기준은 [SPEC.md](SPEC.md)를 참고하세요.
+종목별 설계와 도입 후보 모델의 역할·Mac 검증 상태는 [종목 SPEC](docs/specs/README.md)과 [비전 모델 조사](docs/research/vision-models-2026-11-19.md)에 있습니다.
+개발 지침은 영문 [AGENTS.md](AGENTS.md)에 있습니다.
 
 ## 종목별 설계
 
-종목마다 구장 템플릿과 플레이 단위, 필요한 결과 증거를 다르게 적용합니다.
-아래는 **후속 구현 사양**이며 자동 구장 탐색·공/셔틀 전용 추적·종목 이벤트 모델은 아직 연동되지 않았습니다.
+아래 표는 종목별로 어떤 장면을 하이라이트 후보로 삼고, 어떤 선과 구조물을 기준으로 구장을 찾을지 정리한 후속 설계입니다.
+자동 구장 탐색, 공·셔틀 전용 추적기, 종목별 이벤트 모델은 아직 분석 경로에 연결되지 않았습니다.
 
 | 종목 | 하이라이트 후보 | 구장 탐색의 핵심 | SPEC |
 | --- | --- | --- | --- |
@@ -29,7 +30,8 @@ SAMURAI·TrackNetV3·KaliCalib·PnLCalib·T-DEED 등은 조사 후보이며 설�
 
 ## 전체 처리 과정
 
-**영상 입력 → CV·선택적인 포즈·독립 SAM 관측 → 대상 코트의 검토 후보 합치기·확장 → 선택·출력·검토** 순서입니다.
+포즈로 강한 움직임을 찾을 때는 분석할 코트를 먼저 지정하고, 그 안에서 선수의 움직임이 두드러진 시점 전후를 클립으로 묶습니다.
+아래 그림은 이벤트 시각을 입력하는 방법과 SAM으로 후보를 독립적으로 찾는 방법도 함께 보여 줍니다.
 
 ```mermaid
 flowchart TD
@@ -50,25 +52,26 @@ flowchart TD
     X --> R["후보 순위 선정 + 개수·총길이 제한"]
     U --> R
     S --> R
-    CV --> R
-    DR --> R
     R --> O["클립 + 선택적인 합본 + JSON / HTML 검토 자료"]
+    CV --> D["독립 탐색 후보와 관측 저장"]
+    DR --> D
+    D --> FO["highlight-fusion으로 원본 위에 관측 표시"]
 ```
 
 | 단계 | 처리 내용 | 도구·결과 |
 | --- | --- | --- |
-| 1. 코트 설정 | OpenCV 선 후보를 확인하고 분석할 코트의 경계를 지정합니다. 네트 기둥의 바닥 위치도 지정할 수 있습니다. | `highlight-court`, 검토한 `court.json` |
+| 1. 코트 설정 | 미리보기에서 분석할 코트를 골라 선수의 발 위치를 검사할 영역을 지정합니다. 네트 기둥의 바닥 위치도 지정할 수 있습니다. | `highlight-court` 미리보기, 직접 작성한 `court.json` |
 | 2. 포즈 추출 | 일부 프레임에서 CUDA/MPS로 선수 관절을 검출하고, CPU의 ByteTrack으로 선수를 연결합니다. 빠른 배드민턴 경로의 기본값은 최대 10 FPS, 입력 너비 1280 px입니다. | `highlight-pose` 또는 `highlight-detect`; `<game>_poses.npz` |
-| 3. 코트 필터링 | 발이 지정 영역 안에 있는 선수만 움직임·패턴 분석에 사용합니다. 최초 YOLO 추론은 전체 프레임을 처리합니다. | 포즈 캐시 + 코트 설정 |
+| 3. 코트 필터링 | YOLO는 샘플링한 프레임의 화면 전체에서 선수를 찾습니다. 움직임과 동작 패턴을 분석할 때는 발이 지정 영역 안에 있는 선수만 남깁니다. | 포즈 캐시 + 코트 설정 |
 | 4. 객체 정보 저장 | `highlight-discover`는 독립 SAM 탐색·누락 확인·주변 프레임 분석을 실행합니다. 기존 `highlight-detect`는 포즈 후보 주변을 상세 분석합니다. | `sam_evidence.json` 또는 `<game>_highlights.json` |
 | 5. 후보 구간 구성 | 강한 움직임을 기준으로 앞뒤를 확장하거나, 입력된 경기 이벤트로 랠리·득점 구간을 만듭니다. | `highlight-plays` |
 | 6. 순위 선정 | 움직임 강도, 길이, 동작 패턴, 이용 가능한 SAM 증거를 반영합니다. 겹치는 움직임 구간은 제한 범위 안에서 합치고, 개수·총길이 예산에 맞춰 선택합니다. | 점수·경계 근거가 기록된 구간 |
 | 7. 출력·검토 | 선택 구간을 인코딩하고 필요하면 합본을 만듭니다. 사용자가 후보의 품질과 구간의 완결성을 확인합니다. | MP4, `<game>_plays.json`, `review.html` |
 
-**`highlight-plays`는 새 YOLO·SAM 추론을 실행하지 않습니다.** 저장된 포즈와 선택적인 SAM 증거를 읽습니다.
-객체 증거는 `highlight-detect` 또는 `highlight-patterns --refine-sam`으로 먼저 생성합니다.
-독립 발견 경로에서는 `highlight-discover`의 후보·SAM 증거를 `highlight-fusion`에 전달합니다.
-새로 고른 움직임 시점 중에는 기존 SAM 분석이 없는 지점도 있을 수 있습니다.
+`highlight-plays`는 움직임을 분석할 때 저장된 포즈를 읽으며, YOLO나 SAM을 새로 호출하지 않습니다.
+`highlight-detect` 또는 `highlight-patterns --refine-sam`으로 저장한 객체 관측이 있으면 후보 순위를 정할 때 함께 사용할 수 있습니다.
+SAM이 분석하지 않은 시점도 선수 움직임이 크면 후보가 될 수 있습니다.
+독립 탐색에서는 `highlight-discover`가 저장한 후보와 SAM 관측을 `highlight-fusion`에 넘겨 영상에서 확인합니다.
 
 | 방식 | 기준과 구간 구성 | 결과의 의미 |
 | --- | --- | --- |
@@ -88,43 +91,67 @@ flowchart TD
 
 ## 설치
 
-```sh
-uv sync
+프로젝트 루트에서 의존성을 설치합니다.
 
-# SAM3는 사용 승인 후 체크포인트를 내려받아야 합니다.
-# 먼저 https://huggingface.co/facebook/sam3 에서 접근 권한을 신청하세요.
+```sh
+uv sync --frozen
+```
+
+YOLO 포즈 가중치는 처음 실행할 때 `models/`로 자동 다운로드합니다.
+SAM 3로 객체까지 분석하려면 [SAM 3 모델 페이지](https://huggingface.co/facebook/sam3)에서 접근 승인을 받은 뒤 아래 명령으로 가중치를 받습니다.
+
+```sh
 uvx --from huggingface_hub hf auth login
 uvx --from huggingface_hub hf download facebook/sam3 sam3.pt --local-dir models
 ```
 
-YOLO11-pose 가중치는 첫 실행 때 `models/`로 내려받습니다.
-SAM을 생략하는 포즈 전용 실행에는 SAM 체크포인트가 필요하지 않습니다.
-
 ## 빠른 시작
 
-다음은 Mac에서 새 배드민턴 영상을 처리하는 순서입니다.
-NVIDIA에서는 추론 단계의 장치를 `--device cuda:0`으로 바꾸세요.
+분석 명령에는 로컬 영상 파일의 경로를 넣습니다.
+YouTube에 올린 경기는 먼저 영상 파일로 내려받습니다.
+아래는 프로젝트 루트에서 `data/game.mp4`를 분석하는 예입니다.
+예를 들어 입력 파일이 `match.mp4`라면 마지막 단계에서 읽을 파일 이름도 `match_poses.npz`와 `match_highlights.json`이 됩니다.
+
+### 분석할 코트 지정
 
 ```sh
-# 미리보기를 확인하고, 아래 코트 설정 예시에 맞춰 court.json을 작성합니다.
-uv run highlight-court path/to/game.mp4 --out-dir outputs/court-preview
+uv run highlight-court data/game.mp4 --out-dir outputs/court-preview
+```
 
-# 포즈와 제한된 SAM3 분석 결과를 저장합니다. 영상 출력은 최종 선택까지 미룹니다.
-uv run highlight-detect path/to/game.mp4 --sport badminton --device mps \
+`outputs/court-preview/game_court.jpg`를 열어 내 경기가 진행되는 코트를 찾습니다.
+[코트 설정 예시](#코트-설정)에 따라 그 영역의 네 꼭짓점을 둘레 순서로 `court.json`에 적습니다.
+옆 코트가 함께 보이더라도 이후 단계는 발이 지정 영역 안에 있는 선수의 움직임만 분석합니다.
+
+### 포즈와 객체 관측 저장
+
+Mac에서는 `--device mps`, NVIDIA GPU에서는 `--device cuda:0`을 사용합니다.
+다음 명령은 일정 간격으로 포즈를 추론하고, 후보 구간에서 고른 프레임만 SAM 3로 분석합니다.
+SAM 가중치 없이 포즈만 사용하려면 이 명령에 `--detail-backend none`을 추가합니다.
+
+```sh
+uv run highlight-detect data/game.mp4 --sport badminton --device mps \
   --court court.json --out-dir outputs/game --no-clips --no-overlay
+```
 
-# 캐시를 재사용해 강한 움직임 주변을 확장하고 클립·합본을 출력합니다.
-uv run highlight-plays path/to/game.mp4 --sport badminton --motion-seeds \
+### 후보 클립과 합본 확인
+
+저장한 포즈에서 강한 움직임을 찾아 앞뒤 장면을 묶고, 합계 120초 안에서 클립을 최대 5개 고릅니다.
+포즈만 추출했으면 아래 명령에서 `--sam-evidence`와 그 파일 경로를 생략합니다.
+
+```sh
+uv run highlight-plays data/game.mp4 --sport badminton --motion-seeds \
   --poses outputs/game/game_poses.npz --court court.json \
   --sam-evidence outputs/game/game_highlights.json \
   --max-highlights 5 --highlight-budget 120 --out-dir outputs/motion/game --reel
 ```
 
-포즈만 준비하려면 두 번째 명령에 `--detail-backend none`을 지정합니다.
-최종 선택에서는 `--sam-evidence`를 생략할 수 있습니다.
-마지막 명령만 다시 실행하면 기존 모델 결과로 코트 경계·확장 범위·선택 예산을 조정할 수 있습니다.
+`outputs/motion/game/review.html`에서 선택 결과를 확인합니다.
+클립이 하나 이상 선택되면 같은 폴더의 `game_plays.mp4`에서 합본을 볼 수 있습니다.
+움직임 전후의 길이나 클립 개수·총길이를 조정할 때는 마지막 명령만 다시 실행합니다.
+코트를 바꾸면 포즈 캐시는 재사용할 수 있고, 새 코트의 SAM 관측이 필요하면 `highlight-detect`를 다시 실행합니다.
 
-세부 설정은 [코트 설정](#코트-설정), [움직임 기반 구간 확장](#움직임-기반-구간-확장), [랠리와 득점 구간](#랠리와-득점-구간)을 참고하세요.
+움직임 앞뒤의 범위는 [움직임 기반 구간 확장](#움직임-기반-구간-확장)에서 조정할 수 있습니다.
+서브부터 착지까지 한 랠리를 통째로 담으려면 [랠리와 득점 구간](#랠리와-득점-구간)의 이벤트 입력 예시를 참고하세요.
 
 ## 움직임 기반 구간 확장
 
